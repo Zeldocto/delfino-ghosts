@@ -11,10 +11,11 @@ import { useAuth } from '../lib/auth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatNumber, pluralize } from '../utils/format'
 import { parseTags } from '../utils/validation'
+import { parseTimeInput } from '../utils/time'
 import { GHOST_EXTENSION, GHOST_LIMIT } from '../types'
 
 function emptyValues(): GhostFormValues {
-  return { title: '', description: '', isTas: false, moonshineVersion: '', tags: [] }
+  return { title: '', description: '', level: '', time: '', isTas: false, moonshineVersion: '', tags: [] }
 }
 
 export function Upload() {
@@ -70,6 +71,8 @@ export function Upload() {
       if (result.parsed) {
         const suggestion = suggestMetadata(result.parsed, entry.file.name)
         values.title = suggestion.title ?? ''
+        values.level = suggestion.level ?? ''
+        values.time = suggestion.time ?? ''
         values.moonshineVersion = suggestion.moonshineVersion ?? ''
         values.tags = suggestion.tags ?? []
       }
@@ -140,6 +143,9 @@ export function Upload() {
   const atLimit = remaining === 0
   const overLimit = remaining !== null && readyEntries.length > remaining
   const missingTitles = readyEntries.filter((e) => !e.values.title.trim()).length
+  const missingDetails = readyEntries.filter(
+    (e) => !e.values.level.trim() || parseTimeInput(e.values.time) === null,
+  ).length
 
   /**
    * Uploaded one at a time rather than in parallel: per-row status stays
@@ -158,8 +164,19 @@ export function Upload() {
 
     for (const entry of targets) {
       const title = entry.values.title.trim()
-      if (!title) {
-        updateEntry(entry.key, { status: 'error', errors: ['Give this ghost a title.'] })
+      const level = entry.values.level.trim()
+      const timeMs = parseTimeInput(entry.values.time)
+
+      const problems: string[] = []
+      if (!title) problems.push('Give this ghost a title.')
+      if (!level) problems.push('Say which level this ghost is for.')
+      if (entry.values.time.trim() && timeMs === null) {
+        problems.push('That time is not readable. Use 14.387 or 1:23.456.')
+      } else if (!entry.values.time.trim()) {
+        problems.push('Add the time this ghost gets.')
+      }
+      if (problems.length > 0) {
+        updateEntry(entry.key, { status: 'error', errors: problems })
         continue
       }
 
@@ -170,6 +187,8 @@ export function Upload() {
           userId: user.id,
           title,
           description: entry.values.description.trim() || null,
+          level,
+          timeMs,
           isTas: entry.values.isTas,
           moonshineVersion: entry.values.moonshineVersion.trim() || null,
           tags: parseTags(entry.values.tags.join(', ')),
@@ -280,6 +299,7 @@ export function Upload() {
               {formatNumber(readyEntries.length)} ready
               {doneCount > 0 && ` \u00b7 ${formatNumber(doneCount)} uploaded`}
               {missingTitles > 0 && ` \u00b7 ${formatNumber(missingTitles)} missing a title`}
+              {missingDetails > 0 && ` \u00b7 ${formatNumber(missingDetails)} missing level or time`}
             </span>
 
             <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

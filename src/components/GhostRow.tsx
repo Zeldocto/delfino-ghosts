@@ -3,6 +3,7 @@ import { AuthorName } from './AuthorName'
 import { TasIndicator } from './TasIndicator'
 import { DownloadButton } from './DownloadButton'
 import { formatNumber, formatShortDate, pluralize } from '../utils/format'
+import { formatTime } from '../utils/time'
 import type { GhostListing } from '../types'
 
 interface GhostRowProps {
@@ -24,6 +25,10 @@ export function GhostRow({ ghost, showAuthor = true }: GhostRowProps) {
         </Link>
       </span>
 
+      <span className="cell-level cell-dim">{ghost.level ?? ''}</span>
+
+      <span className="cell-time cell-num cell-dim">{formatTime(ghost.time_ms)}</span>
+
       <span className="cell-author cell-dim">
         {showAuthor ? (
           <AuthorName username={ghost.author_username} displayName={ghost.author_display_name} />
@@ -38,6 +43,8 @@ export function GhostRow({ ghost, showAuthor = true }: GhostRowProps) {
 
       {/* Folded mobile layout puts author, count and date on one line. */}
       <span className="cell-meta">
+        {ghost.level && `${ghost.level} \u00b7 `}
+        {ghost.time_ms !== null && `${formatTime(ghost.time_ms)} \u00b7 `}
         {showAuthor && (
           <>
             <AuthorName username={ghost.author_username} displayName={ghost.author_display_name} />

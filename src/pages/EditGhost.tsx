@@ -6,6 +6,7 @@ import { getGhost, updateGhost } from '../lib/ghosts'
 import { friendlyError } from '../lib/errors'
 import { useAuth } from '../lib/auth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { formatTime, parseTimeInput } from '../utils/time'
 import type { GhostListing } from '../types'
 
 export function EditGhost() {
@@ -45,6 +46,8 @@ export function EditGhost() {
       await updateGhost(ghost, {
         title: values.title,
         description: values.description || null,
+        level: values.level || null,
+        timeMs: parseTimeInput(values.time),
         isTas: values.isTas,
         moonshineVersion: values.moonshineVersion || null,
         tags: values.tags,
@@ -102,6 +105,8 @@ export function EditGhost() {
           initial={{
             title: ghost.title,
             description: ghost.description ?? '',
+            level: ghost.level ?? '',
+            time: formatTime(ghost.time_ms),
             isTas: ghost.is_tas,
             moonshineVersion: ghost.moonshine_version ?? '',
             tags: ghost.tags,

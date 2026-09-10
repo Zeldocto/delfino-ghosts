@@ -3,12 +3,17 @@ import { Notice } from './Notices'
 import { validateGhostFile, describeParsedGhost, suggestMetadata } from '../lib/ghost'
 import type { ParsedGhost } from '../lib/ghost'
 import { parseTags, validateDescription, validateTitle } from '../utils/validation'
+import { validateTimeInput } from '../utils/time'
+import { LEVEL_SUGGESTIONS } from '../utils/levels'
 import { formatBytes } from '../utils/format'
 import { GHOST_EXTENSION } from '../types'
 
 export interface GhostFormValues {
   title: string
   description: string
+  level: string
+  /** As typed; converted to milliseconds on save. */
+  time: string
   isTas: boolean
   moonshineVersion: string
   tags: string[]
@@ -36,6 +41,8 @@ export function GhostForm({
 }: GhostFormProps) {
   const ids = {
     title: useId(),
+    level: useId(),
+    time: useId(),
     description: useId(),
     version: useId(),
     tags: useId(),
@@ -43,6 +50,8 @@ export function GhostForm({
   }
 
   const [title, setTitle] = useState(initial?.title ?? '')
+  const [level, setLevel] = useState(initial?.level ?? '')
+  const [time, setTime] = useState(initial?.time ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [isTas, setIsTas] = useState(initial?.isTas ?? false)
   const [moonshineVersion, setMoonshineVersion] = useState(initial?.moonshineVersion ?? '')
@@ -77,6 +86,8 @@ export function GhostForm({
     if (result.parsed) {
       const suggestion = suggestMetadata(result.parsed, picked.name)
       if (suggestion.title && !title.trim()) setTitle(suggestion.title)
+      if (suggestion.level && !level.trim()) setLevel(suggestion.level)
+      if (suggestion.time && !time.trim()) setTime(suggestion.time)
       if (suggestion.moonshineVersion && !moonshineVersion.trim()) {
         setMoonshineVersion(suggestion.moonshineVersion)
       }
@@ -94,6 +105,11 @@ export function GhostForm({
     const descriptionError = validateDescription(description)
     if (descriptionError) errors.description = descriptionError
 
+    if (!level.trim()) errors.level = 'Which level is this ghost for?'
+    if (!time.trim()) errors.time = 'What time does it get?'
+    const timeError = validateTimeInput(time)
+    if (timeError) errors.time = timeError
+
     if (mode === 'create' && !file) errors.file = 'Choose the ghost file to upload.'
 
     setFieldErrors(errors)
@@ -103,6 +119,8 @@ export function GhostForm({
       {
         title: title.trim(),
         description: description.trim(),
+        level: level.trim(),
+        time: time.trim(),
         isTas,
         moonshineVersion: moonshineVersion.trim(),
         tags: parseTags(tagInput),
@@ -131,6 +149,54 @@ export function GhostForm({
         />
         {fieldErrors.title && <span className="field-error">{fieldErrors.title}</span>}
       </div>
+
+      <div className="field-pair">
+        <div className="field">
+          <label className="field-label" htmlFor={ids.level}>
+            Level
+          </label>
+          <input
+            id={ids.level}
+            className="input"
+            list="delfino-levels"
+            value={level}
+            maxLength={48}
+            onChange={(e) => setLevel(e.target.value)}
+            placeholder="Bianco Hills 3"
+            aria-invalid={Boolean(fieldErrors.level)}
+            disabled={busy}
+          />
+          {fieldErrors.level && <span className="field-error">{fieldErrors.level}</span>}
+        </div>
+
+        <div className="field">
+          <label className="field-label" htmlFor={ids.time}>
+            Time
+          </label>
+          <input
+            id={ids.time}
+            className="input"
+            value={time}
+            maxLength={12}
+            inputMode="decimal"
+            onChange={(e) => setTime(e.target.value)}
+            placeholder="14.387"
+            aria-invalid={Boolean(fieldErrors.time)}
+            disabled={busy}
+          />
+          {fieldErrors.time ? (
+            <span className="field-error">{fieldErrors.time}</span>
+          ) : (
+            <span className="field-hint">Like 14.387 or 1:23.456</span>
+          )}
+        </div>
+      </div>
+
+      <datalist id="delfino-levels">
+        {LEVEL_SUGGESTIONS.map((name) => (
+          <option value={name} key={name} />
+        ))}
+      </datalist>
 
       <div className="field">
         <label className="field-label" htmlFor={ids.description}>

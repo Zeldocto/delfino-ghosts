@@ -25,6 +25,8 @@ export function GhostList({
         <div className="listing-head" aria-hidden="true">
           <span />
           <span>Ghost</span>
+          <span>Level</span>
+          <span className="cell-num">Time</span>
           <span>{showAuthor ? 'Author' : 'Version'}</span>
           <span className="cell-num">Downloads</span>
           <span className="cell-num">Uploaded</span>

@@ -11,7 +11,7 @@
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
-  --shell: 1080px;
+  --shell: 1160px;
   --gap: 20px;
   --row-h: 34px;
 }
@@ -399,6 +399,18 @@ hr {
   max-width: 460px;
 }
 
+.field-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 14px;
+}
+@media (max-width: 560px) {
+  .field-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
 /* --- browse toolbar ------------------------------------------------------- */
 
 .toolbar {
@@ -432,9 +444,10 @@ hr {
 .listing-head,
 .ghost-row {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 9.5rem 6rem 4.75rem 5.5rem;
+  /* tas · ghost · level · time · author · downloads · date · action */
+  grid-template-columns: 20px minmax(0, 1fr) 8.5rem 5rem 8rem 5.5rem 4.5rem 5.5rem;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .listing-head {
@@ -463,6 +476,16 @@ hr {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cell-level {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-time {
+  font-variant-numeric: tabular-nums;
 }
 
 .ghost-title {
@@ -824,6 +847,8 @@ hr {
     grid-area: title;
   }
   .ghost-row > .cell-author,
+  .ghost-row > .cell-level,
+  .ghost-row > .cell-time,
   .ghost-row > .cell-downloads,
   .ghost-row > .cell-date {
     display: none;
@@ -943,9 +968,15 @@ hr {
 
 .queue-head {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr) auto auto;
-  gap: 10px;
+  /* status · title · level · time · TAS · actions */
+  grid-template-columns: 5rem minmax(0, 1fr) 9rem 5.5rem auto auto;
+  gap: 8px;
   align-items: center;
+}
+
+.queue-level-cell,
+.queue-time-cell {
+  min-width: 0;
 }
 
 .queue-status {
@@ -1017,12 +1048,19 @@ hr {
 
 @media (max-width: 760px) {
   .queue-head {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
     grid-template-areas:
-      'status  actions'
-      'title   title'
-      'tas     tas';
+      'status status  actions'
+      'title  title   title'
+      'level  time    time'
+      'tas    tas     tas';
     row-gap: 6px;
+  }
+  .queue-head > .queue-level-cell {
+    grid-area: level;
+  }
+  .queue-head > .queue-time-cell {
+    grid-area: time;
   }
   .queue-head > .queue-status {
     grid-area: status;

@@ -9,6 +9,7 @@ import { friendlyError } from '../lib/errors'
 import { useAuth } from '../lib/auth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatBytes, formatLongDate, formatNumber, pluralize } from '../utils/format'
+import { formatTime } from '../utils/time'
 import type { GhostListing } from '../types'
 
 export function GhostDetail() {
@@ -162,6 +163,18 @@ export function GhostDetail() {
       )}
 
       <dl className="kv" style={{ marginBottom: 22 }}>
+        {ghost.level && (
+          <>
+            <dt>Level</dt>
+            <dd>{ghost.level}</dd>
+          </>
+        )}
+        {ghost.time_ms !== null && (
+          <>
+            <dt>Time</dt>
+            <dd>{formatTime(ghost.time_ms)}</dd>
+          </>
+        )}
         <dt>Downloads</dt>
         <dd>
           {formatNumber(ghost.download_count)} {pluralize(ghost.download_count, 'download')}

@@ -16,6 +16,9 @@ export interface GhostListing {
   user_id: string
   title: string
   description: string | null
+  level: string | null
+  /** Milliseconds. Formatted for display with formatTime(). */
+  time_ms: number | null
   file_path: string
   original_filename: string
   file_size: number
@@ -31,13 +34,14 @@ export interface GhostListing {
   total_count: number
 }
 
-export type SortKey = 'recent' | 'downloads' | 'oldest' | 'updated'
+export type SortKey = 'recent' | 'downloads' | 'oldest' | 'updated' | 'time'
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'recent', label: 'Recently uploaded' },
   { value: 'downloads', label: 'Most downloaded' },
   { value: 'oldest', label: 'Oldest' },
   { value: 'updated', label: 'Recently updated' },
+  { value: 'time', label: 'Fastest time' },
 ]
 
 export interface Mdp {

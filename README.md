@@ -156,6 +156,10 @@ supabase db push
 | `supabase/migrations/0001_init.sql` | Tables, constraints, indexes, triggers, RLS policies, RPC functions |
 | `supabase/migrations/0002_storage.sql` | The `ghosts` Storage bucket and its object policies |
 | `supabase/migrations/0003_no_self_downloads.sql` | Stops an author's own downloads counting toward their ghosts |
+| `supabase/migrations/0004_level_and_time.sql` | Adds `level` and `time_ms`, folds level into search, adds a fastest-time sort |
+
+Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
+add a new numbered file instead.
 
 There is also a test suite under `supabase/tests/`. It runs against a throwaway local PostgreSQL
 database — never a real project — and asserts the things that matter: forged ownership, direct
@@ -200,6 +204,8 @@ they are run. What follows is an inventory so you know what should exist afterwa
 | `title`, `description` | 1–100 and ≤2000 characters |
 | `file_path` | Storage key. A CHECK constraint requires it to start with `user_id/` and contain no `..` |
 | `original_filename`, `file_size` | Size capped at 2 MiB |
+| `level` | Which level the ghost is for, e.g. `Bianco Hills 3`. Free text, trimmed on write, up to 48 chars |
+| `time_ms` | The run's time in whole milliseconds. Integer so it sorts and compares; formatted for display in the frontend |
 | `is_tas` | The TAS flag |
 | `moonshine_version`, `tags` | Optional; tags normalised and capped at 8 |
 | `download_count` | Never writable by a client — see below |
@@ -326,6 +332,20 @@ if it ever needs reconciling.
 Nobody is pinned as MDP. `current_mdp()` reads live figures, and the shimmering name follows the
 current leader automatically. All rendering goes through one `<AuthorName />` component, so the
 designation and its tooltip appear identically in Browse, ghost pages, profiles and the leaderboard.
+
+### Level and time
+
+Every ghost records which level it is for and what time it gets. Both are read out of the file where
+possible: Moonshine writes its run label as `Bianco Hills 3 - 0:37.337`, and the filename carries the
+same information as `BH3_37337`, so the upload form usually arrives already filled in.
+
+Times are stored as integer milliseconds. The input accepts the ways runners actually write them —
+`14.387`, `0:37.337`, `1:23.456`, `1:23` — and displays them back in the shortest sensible form.
+Level is free text with suggestions for the standard episodes, so secret stages and unusual
+categories are not locked out by a dropdown.
+
+Both columns are nullable, because ghosts uploaded before this existed have neither. Browse shows a
+blank cell for those rather than hiding them.
 
 ### Uploading in bulk
 

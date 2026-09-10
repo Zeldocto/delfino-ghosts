@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatBytes } from '../utils/format'
+import { LEVEL_SUGGESTIONS } from '../utils/levels'
+import { validateTimeInput } from '../utils/time'
 import type { GhostFormValues } from './GhostForm'
 
 export type QueueStatus = 'checking' | 'ready' | 'invalid' | 'uploading' | 'done' | 'error'
@@ -62,6 +64,39 @@ function QueueItem({ entry, onChange, onToggleExpand, onRemove }: QueueItemProps
           )}
         </span>
 
+        <span className="queue-level-cell">
+          <label className="sr-only" htmlFor={`level-${entry.key}`}>
+            Level for {entry.file.name}
+          </label>
+          <input
+            id={`level-${entry.key}`}
+            className="input"
+            list="delfino-levels"
+            value={entry.values.level}
+            maxLength={48}
+            disabled={locked || entry.status === 'invalid'}
+            placeholder="Level"
+            onChange={(e) => onChange(entry.key, { level: e.target.value })}
+          />
+        </span>
+
+        <span className="queue-time-cell">
+          <label className="sr-only" htmlFor={`time-${entry.key}`}>
+            Time for {entry.file.name}
+          </label>
+          <input
+            id={`time-${entry.key}`}
+            className="input"
+            value={entry.values.time}
+            maxLength={12}
+            inputMode="decimal"
+            disabled={locked || entry.status === 'invalid'}
+            placeholder="Time"
+            aria-invalid={Boolean(validateTimeInput(entry.values.time))}
+            onChange={(e) => onChange(entry.key, { time: e.target.value })}
+          />
+        </span>
+
         <label className="checkbox queue-tas">
           <input
             type="checkbox"
@@ -100,6 +135,10 @@ function QueueItem({ entry, onChange, onToggleExpand, onRemove }: QueueItemProps
         {entry.file.name} · {formatBytes(entry.file.size)}
         {entry.message ? ` · ${entry.message}` : ''}
       </p>
+
+      {validateTimeInput(entry.values.time) && entry.status !== 'invalid' && (
+        <p className="queue-message queue-message-error">{validateTimeInput(entry.values.time)}</p>
+      )}
 
       {entry.errors.map((message) => (
         <p className="queue-message queue-message-error" key={message} role="alert">
@@ -177,6 +216,11 @@ export function UploadQueue({ entries, onChange, onToggleExpand, onRemove }: Upl
 
   return (
     <div className="queue" aria-label="Upload queue">
+      <datalist id="delfino-levels">
+        {LEVEL_SUGGESTIONS.map((name) => (
+          <option value={name} key={name} />
+        ))}
+      </datalist>
       {entries.map((entry) => (
         <QueueItem
           key={entry.key}

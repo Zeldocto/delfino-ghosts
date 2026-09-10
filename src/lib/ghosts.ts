@@ -48,7 +48,7 @@ export async function getGhost(id: string): Promise<GhostListing | null> {
   const { data, error } = await supabase
     .from('ghosts')
     .select(
-      'id, user_id, title, description, file_path, original_filename, file_size, is_tas, ' +
+      'id, user_id, title, description, level, time_ms, file_path, original_filename, file_size, is_tas, ' +
         'moonshine_version, tags, download_count, created_at, updated_at, ' +
         'profiles!inner(username, display_name, total_downloads)',
     )
@@ -85,6 +85,9 @@ export interface CreateGhostInput {
   userId: string
   title: string
   description: string | null
+  level: string | null
+  /** Milliseconds, or null when unknown. */
+  timeMs: number | null
   isTas: boolean
   moonshineVersion: string | null
   tags: string[]
@@ -111,6 +114,8 @@ export async function createGhost(input: CreateGhostInput): Promise<string> {
       user_id: input.userId,
       title: input.title,
       description: input.description,
+      level: input.level,
+      time_ms: input.timeMs,
       file_path: path,
       original_filename: filename,
       file_size: input.file.size,
@@ -134,6 +139,8 @@ export async function createGhost(input: CreateGhostInput): Promise<string> {
 export interface UpdateGhostInput {
   title: string
   description: string | null
+  level: string | null
+  timeMs: number | null
   isTas: boolean
   moonshineVersion: string | null
   tags: string[]
@@ -148,6 +155,8 @@ export async function updateGhost(
   const patch: Record<string, unknown> = {
     title: input.title,
     description: input.description,
+    level: input.level,
+    time_ms: input.timeMs,
     is_tas: input.isTas,
     moonshine_version: input.moonshineVersion,
     tags: input.tags,
