@@ -23,8 +23,13 @@
                 : 'dark'
           document.documentElement.dataset.theme = theme
           document.documentElement.style.colorScheme = theme
+          // Paint the page background before the stylesheet arrives, matching
+          // the resolved theme rather than assuming dark.
+          document.documentElement.style.backgroundColor =
+            theme === 'light' ? '#f3f5f4' : '#0c1113'
         } catch (e) {
           document.documentElement.dataset.theme = 'dark'
+          document.documentElement.style.backgroundColor = '#0c1113'
         }
       })()
     </script>
@@ -40,12 +45,12 @@
       })()
     </script>
   </head>
-  <body style="background:#0c1113">
+  <body>
     <div id="root">
       <!-- Replaced by React on mount. If this text is still here, the app
            bundle did not load or did not run - check the browser console. -->
-      <div style="font-family: ui-monospace, monospace; color: #869799; padding: 40px 20px; max-width: 620px; margin: 0 auto">
-        <p style="color: #d8dfdd">Delfino Ghosts</p>
+      <div style="font-family: ui-monospace, monospace; opacity: 0.6; padding: 40px 20px; max-width: 620px; margin: 0 auto">
+        <p style="opacity: 0.9">Delfino Ghosts</p>
         <p>Loading the archive&hellip;</p>
         <noscript>
           <p>This site needs JavaScript. The archive is a client-side application.</p>

@@ -5,7 +5,7 @@ import { friendlyError } from '../lib/errors'
 import type { GhostListing } from '../types'
 
 interface DownloadButtonProps {
-  ghost: Pick<GhostListing, 'id' | 'file_path' | 'original_filename' | 'title'>
+  ghost: Pick<GhostListing, 'id' | 'user_id' | 'file_path' | 'original_filename' | 'title'>
   /** Wider label + primary styling for the ghost detail page. */
   prominent?: boolean
   onCounted?: (count: number | null) => void
@@ -20,7 +20,7 @@ export function DownloadButton({ ghost, prominent = false, onCounted }: Download
     setBusy(true)
     setError(null)
     try {
-      const outcome = await downloadGhost(ghost, Boolean(user))
+      const outcome = await downloadGhost(ghost, user?.id ?? null)
       if (outcome.counted) onCounted?.(outcome.count)
     } catch (err) {
       setError(friendlyError(err, 'That file could not be downloaded right now.'))

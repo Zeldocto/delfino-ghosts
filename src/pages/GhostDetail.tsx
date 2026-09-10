@@ -190,7 +190,13 @@ export function GhostDetail() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <DownloadButton ghost={ghost} prominent onCounted={handleCounted} />
-        {!user && <span className="page-note">Downloads count toward the archive when you are signed in.</span>}
+        {isOwner ? (
+          <span className="page-note">Downloading your own ghost does not add to its count.</span>
+        ) : (
+          !user && (
+            <span className="page-note">Downloads count toward the archive when you are signed in.</span>
+          )
+        )}
       </div>
     </div>
   )

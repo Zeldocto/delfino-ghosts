@@ -70,6 +70,12 @@ body {
   padding: 0;
 }
 
+/* The root element carries the background too: the pre-paint script sets an
+   inline colour on <html>, and this keeps it in step after a theme toggle. */
+html {
+  background: var(--bg);
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -866,5 +872,176 @@ hr {
 @media (max-width: 760px) {
   .cell-meta {
     display: block;
+  }
+}
+
+/* --- upload: drop zone and queue -----------------------------------------
+   The drop target has to read as a target before anything is dragged, and
+   change unmistakably once files are over it.                              */
+
+.dropzone {
+  border: 1px dashed var(--rule-strong);
+  border-radius: 2px;
+  background: var(--bg-raised);
+  padding: 30px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+.dropzone:hover:not(.is-disabled) {
+  border-color: var(--text-faint);
+}
+.dropzone.is-dragging {
+  border-style: solid;
+  border-color: var(--link);
+  background: var(--accent-soft);
+}
+.dropzone.is-dragging .dropzone-line {
+  color: var(--link);
+}
+.dropzone.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dropzone-line {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+.dropzone-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.queue-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 22px 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.queue {
+  border-bottom: 1px solid var(--rule);
+}
+
+.queue-item {
+  border-bottom: 1px solid var(--rule);
+  padding: 9px 4px;
+}
+.queue-item[data-status='invalid'],
+.queue-item[data-status='error'] {
+  background: var(--danger-soft);
+}
+.queue-item[data-status='done'] {
+  opacity: 0.72;
+}
+
+.queue-head {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.queue-status {
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+}
+.queue-status-done {
+  color: var(--ok);
+}
+.queue-status-invalid,
+.queue-status-error {
+  color: var(--danger);
+}
+.queue-status-uploading {
+  color: var(--link);
+}
+
+.queue-title-cell {
+  min-width: 0;
+}
+.queue-tas {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.queue-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.queue-file {
+  margin: 4px 0 0 6.2rem;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-message {
+  margin: 4px 0 0 6.2rem;
+  font-size: 12px;
+}
+.queue-message-error {
+  color: var(--danger);
+}
+.queue-message-warn {
+  color: var(--gold);
+}
+
+.queue-detail {
+  margin: 10px 0 4px 6.2rem;
+}
+.queue-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.queue-submit {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+@media (max-width: 760px) {
+  .queue-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'status  actions'
+      'title   title'
+      'tas     tas';
+    row-gap: 6px;
+  }
+  .queue-head > .queue-status {
+    grid-area: status;
+  }
+  .queue-head > .queue-title-cell {
+    grid-area: title;
+  }
+  .queue-head > .queue-tas {
+    grid-area: tas;
+  }
+  .queue-head > .queue-actions {
+    grid-area: actions;
+  }
+  .queue-file,
+  .queue-message,
+  .queue-detail {
+    margin-left: 0;
+  }
+  .queue-detail-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

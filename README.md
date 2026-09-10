@@ -155,6 +155,7 @@ supabase db push
 | --- | --- |
 | `supabase/migrations/0001_init.sql` | Tables, constraints, indexes, triggers, RLS policies, RPC functions |
 | `supabase/migrations/0002_storage.sql` | The `ghosts` Storage bucket and its object policies |
+| `supabase/migrations/0003_no_self_downloads.sql` | Stops an author's own downloads counting toward their ghosts |
 
 There is also a test suite under `supabase/tests/`. It runs against a throwaway local PostgreSQL
 database — never a real project — and asserts the things that matter: forged ownership, direct
@@ -303,6 +304,8 @@ byte-for-byte; nothing rewrites the container.
 Counting is separate from delivery:
 
 - **Guest:** file is delivered, counter does not move.
+- **The author, downloading their own ghost:** file is delivered, counter does not move. Otherwise
+  anyone could climb the MDP ranking one click at a time on their own uploads.
 - **Signed in:** file is delivered, and the client calls
   `record_authenticated_download(ghost_id)`. That function checks `auth.uid()`, performs a single
   atomic `download_count = download_count + 1`, updates the author's total and writes a log row.
@@ -323,6 +326,14 @@ if it ever needs reconciling.
 Nobody is pinned as MDP. `current_mdp()` reads live figures, and the shimmering name follows the
 current leader automatically. All rendering goes through one `<AuthorName />` component, so the
 designation and its tooltip appear identically in Browse, ghost pages, profiles and the leaderboard.
+
+### Uploading in bulk
+
+The upload page takes a whole folder at once: drop any number of `.smsghost` files onto the box (it
+highlights while files are over it) or click to browse. Each file is parsed on arrival, so titles,
+versions and category tags arrive pre-filled, and each row can be edited individually before
+sending. Files are uploaded one at a time rather than in parallel, which keeps the per-row status
+accurate and means a failure part way through leaves everything before it saved.
 
 ### Ghost files
 
@@ -468,8 +479,12 @@ provider before opening the archive to a real community.
 **Uploads fail with a size or type error** — the Storage bucket enforces 2 MB and the `.smsghost`
 extension independently of the browser. Confirm `0002_storage.sql` ran.
 
-**Download counts are not moving** — counting only happens for signed-in users, and only once per
-ghost per hour per account. Both are intentional.
+**Download counts are not moving** — counting only happens for signed-in users who are not the
+ghost's author, and only once per ghost per hour per account. All three are intentional.
+
+**Batch uploads stop part way** — the run halts at the 200-ghost limit, and everything uploaded
+before that point is already saved. Rows left in the queue keep their metadata, so delete some
+ghosts and press upload again to resume.
 
 **Counters look wrong after manual database edits** — run `select public.recompute_profile_stats();`
 in the SQL editor to rebuild the aggregates from the ghosts table.

@@ -12,7 +12,8 @@ export interface DownloadOutcome {
 }
 
 /**
- * Guests download freely; only a signed-in download is counted.
+ * Guests download freely. A download is counted only when the visitor is
+ * signed in and is not the ghost's own author.
  *
  * The counter is never written from here. The client asks Postgres to record
  * the download through `record_authenticated_download`, which is SECURITY
@@ -20,10 +21,13 @@ export interface DownloadOutcome {
  * atomic increment. The frontend has no UPDATE path to `ghosts.download_count`
  * at all — an update trigger pins the column to its previous value outside that
  * function, so a hand-written API call cannot move it.
+ *
+ * The owner check below only avoids a pointless request: the same rule is
+ * enforced inside the function, so calling it directly changes nothing.
  */
 export async function downloadGhost(
-  ghost: Pick<GhostListing, 'id' | 'file_path' | 'original_filename'>,
-  isAuthenticated: boolean,
+  ghost: Pick<GhostListing, 'id' | 'user_id' | 'file_path' | 'original_filename'>,
+  viewerId: string | null,
 ): Promise<DownloadOutcome> {
   const url = ghostPublicUrl(ghost.file_path)
 
@@ -36,7 +40,8 @@ export async function downloadGhost(
   const blob = await response.blob()
   saveBlob(blob, ghost.original_filename)
 
-  if (!isAuthenticated) {
+  const countable = Boolean(viewerId) && viewerId !== ghost.user_id
+  if (!countable) {
     return { delivered: true, counted: false, count: null }
   }
 

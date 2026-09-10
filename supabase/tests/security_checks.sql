@@ -96,6 +96,11 @@ select set_config('request.jwt.claim.sub','33333333-3333-3333-3333-333333333333'
 \echo 'PASS if: 2'
 select public.record_authenticated_download((select id from public.ghosts limit 1));
 
+\echo '-- the author downloading their own ghost -> does not count'
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false) \g /dev/null
+\echo 'PASS if: 2 (unchanged)'
+select public.record_authenticated_download((select id from public.ghosts limit 1));
+
 \echo '-- unknown ghost -> ghost_not_found'
 select public.record_authenticated_download('99999999-9999-9999-9999-999999999999');
 

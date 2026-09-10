@@ -503,6 +503,12 @@ begin
     raise exception 'ghost_not_found' using errcode = 'P0002';
   end if;
 
+  -- Your own ghosts never count toward your own total, or an author could
+  -- inflate their own ranking one click at a time.
+  if v_owner = v_uid then
+    return v_count;
+  end if;
+
   -- Cooldown: the same account re-downloading the same ghost within an hour
   -- still gets the file (the frontend downloads regardless), it just does not
   -- move the number again.

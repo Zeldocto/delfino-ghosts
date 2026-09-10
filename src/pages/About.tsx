@@ -41,9 +41,10 @@ export function About() {
 
         <h2>Uploading</h2>
         <p>
-          Sign in, open <Link to="/upload">Upload</Link>, give the ghost a title and attach the file.
-          A description is optional but makes a ghost far more useful to the next person: route,
-          setup, what to watch for. Each account can hold up to {GHOST_LIMIT} ghosts; you can delete
+          Sign in and open <Link to="/upload">Upload</Link>. You can drop a whole folder of ghosts
+          at once — each file is read on arrival, so titles and versions arrive filled in, and you
+          can adjust each one before sending. A description is optional but makes a ghost far more
+          useful to the next person: route, setup, what to watch for. Each account can hold up to {GHOST_LIMIT} ghosts; you can delete
           your own at any time to make room.
         </p>
 
@@ -51,8 +52,8 @@ export function About() {
         <p>
           Anyone can download anything here without an account. The difference an account makes is
           bookkeeping: a download only moves a ghost&apos;s counter when the person downloading is
-          signed in, which keeps the numbers meaningful rather than a measure of how many scripts
-          have hit the file.
+          signed in and is not the ghost&apos;s own author, which keeps the numbers meaningful
+          rather than a measure of how many scripts have hit the file.
         </p>
 
         <h2>TAS</h2>

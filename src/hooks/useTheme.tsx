@@ -33,6 +33,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     document.documentElement.style.colorScheme = theme
+    // index.html paints an inline background before the stylesheet loads. Once
+    // React is running, drop it so `html { background: var(--bg) }` governs and
+    // a toggle actually repaints the page.
+    document.documentElement.style.backgroundColor = ''
     try {
       window.localStorage.setItem(STORAGE_KEY, theme)
     } catch {
