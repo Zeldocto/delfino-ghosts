@@ -8,7 +8,7 @@ your downloads counted.
 
 - **Frontend:** React + TypeScript + Vite, hosted on GitHub Pages
 - **Backend:** Supabase (Auth, PostgreSQL, Storage) — no custom server
-- **Live at:** `https://<your-username>.github.io/delfino-ghosts/`
+- **Live at:** `https://zeldocto.github.io/delfino-ghosts/`
 
 ---
 
