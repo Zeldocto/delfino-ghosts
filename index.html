@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Delfino Ghosts</title>
+    <meta
+      name="description"
+      content="A community archive for Super Mario Sunshine ghosts recorded with the Moonshine practice mod."
+    />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script>
+      // Apply the stored theme before first paint so dark never flashes white.
+      (function () {
+        try {
+          var stored = localStorage.getItem('delfino-theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          document.documentElement.dataset.theme = theme
+          document.documentElement.style.colorScheme = theme
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
+    <script>
+      // Companion to public/404.html: restores the real path after GitHub Pages
+      // has served the fallback document for a deep link.
+      (function () {
+        var redirect = sessionStorage.getItem('delfino:redirect')
+        if (redirect) {
+          sessionStorage.removeItem('delfino:redirect')
+          if (redirect !== window.location.href) history.replaceState(null, '', redirect)
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

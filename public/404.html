@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Delfino Ghosts</title>
+    <script>
+      // GitHub Pages has no server-side routing: any deep link such as
+      // /delfino-ghosts/profile/theo returns this document. Remember where the
+      // visitor was actually going, then load the app, which puts the address
+      // back before React Router reads it. Query string and hash are preserved
+      // so Supabase auth links keep working.
+      (function () {
+        sessionStorage.setItem('delfino:redirect', window.location.href)
+        var segments = window.location.pathname.split('/')
+        // On a project site the first segment is the repository name.
+        var base = segments.length > 1 && segments[1] ? '/' + segments[1] + '/' : '/'
+        window.location.replace(base + window.location.search + window.location.hash)
+      })()
+    </script>
+  </head>
+  <body>
+    <p>Loading the archive…</p>
+  </body>
+</html>
