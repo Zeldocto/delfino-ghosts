@@ -43,7 +43,6 @@ export function Home() {
   return (
     <div>
       <section className="home-hero">
-        <h1 className="home-title">DELFINO GHOSTS👻</h1>
         <p className="home-sub">
           No account required to download.
         </p>
