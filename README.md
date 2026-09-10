@@ -8,7 +8,7 @@ your downloads counted.
 
 - **Frontend:** React + TypeScript + Vite, hosted on GitHub Pages
 - **Backend:** Supabase (Auth, PostgreSQL, Storage) — no custom server
-- **Live at:** `https://zeldocto.github.io/delfino-ghosts/`
+- **Live at:** `https://<your-username>.github.io/delfino-ghosts/`
 
 ---
 
@@ -156,6 +156,24 @@ supabase db push
 | `supabase/migrations/0001_init.sql` | Tables, constraints, indexes, triggers, RLS policies, RPC functions |
 | `supabase/migrations/0002_storage.sql` | The `ghosts` Storage bucket and its object policies |
 
+There is also a test suite under `supabase/tests/`. It runs against a throwaway local PostgreSQL
+database — never a real project — and asserts the things that matter: forged ownership, direct
+counter writes, path traversal, cross-user edits and deletes, guest calls to the download RPC, the
+200-ghost limit reached through the API rather than the UI, MDP handover, and whether the
+maintained aggregates still agree with a full recount. Re-run it after touching any policy, trigger
+or grant:
+
+```bash
+createdb delfino_test
+psql -d delfino_test -f supabase/tests/local_stubs.sql
+psql -d delfino_test -f supabase/migrations/0001_init.sql
+psql -d delfino_test -f supabase/migrations/0002_storage.sql
+psql -d delfino_test -f supabase/tests/security_checks.sql
+```
+
+Several checks deliberately provoke errors — for those, the error *is* the passing result, and each
+block says what to expect.
+
 The files are the authoritative SQL — they are commented throughout and are meant to be read before
 they are run. What follows is an inventory so you know what should exist afterwards.
 
@@ -201,7 +219,7 @@ GIN on `search_vector`.
 
 | Function | Purpose |
 | --- | --- |
-| `handle_new_user()` | Creates the profile row on signup, deriving a safe username if none was supplied |
+| `handle_new_user()` | Creates the profile row on signup. A username that is missing, malformed, reserved or already taken becomes a derived fallback rather than a failed signup |
 | `ghosts_before_insert()` | Forces ownership from `auth.uid()`, zeroes the counter, enforces the 200-ghost limit under an advisory lock |
 | `ghosts_before_update()` | Pins `user_id`, `created_at` and `download_count` so an update cannot change them |
 | `ghosts_after_change()` | Maintains the profile aggregates |
@@ -419,7 +437,9 @@ delfino-ghosts/
 │   ├── types/                     Shared types and constants
 │   ├── utils/                     Formatting and input validation
 │   └── styles.css                 Design tokens and all styling
-├── supabase/migrations/           0001_init.sql, 0002_storage.sql
+├── supabase/
+│   ├── migrations/                0001_init.sql, 0002_storage.sql
+│   └── tests/                     local_stubs.sql, security_checks.sql
 ├── .env.example
 └── vite.config.ts
 ```
@@ -433,9 +453,10 @@ Database access is confined to `src/lib`. Components receive data as props and n
 **"Delfino Ghosts is not configured"** — `.env` is missing or empty. In production it means the
 Actions variables were not set at build time; add them and re-run the workflow.
 
-**Signup fails with a database error** — usually a taken username. The signup trigger enforces
-case-insensitive uniqueness, so `Theo` and `theo` collide. The form checks availability first, but a
-race between two signups can still land here.
+**Signup produced an unexpected username** — the trigger falls back to a derived name (like
+`runner_a1b2c`) when the requested one is malformed, reserved, or lost a race for a name that is
+case-insensitively taken (`Theo` and `theo` collide). The account is created either way; the person
+can set the name they want in Settings.
 
 **A deep link 404s on the live site** — confirm `dist/404.html` exists in the deployed artifact and
 that Pages **Source** is set to **GitHub Actions** rather than a branch.

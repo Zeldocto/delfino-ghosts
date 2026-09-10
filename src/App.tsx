@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './hooks/useTheme'
 import { MdpProvider } from './hooks/useMdp'
@@ -71,47 +72,49 @@ export default function App() {
   if (!isSupabaseConfigured) return <ConfigurationNeeded />
 
   return (
-    <ThemeProvider>
-      <BrowserRouter basename={basename}>
-        <AuthProvider>
-          <MdpProvider>
-            <ScrollToTop />
-            <RecoveryRedirect />
-            <Routes>
-              <Route element={<Layout />}>
-                <Route index element={<Home />} />
-                <Route path="browse" element={<Browse />} />
-                <Route path="ghost/:id" element={<GhostDetail />} />
-                <Route
-                  path="ghost/:id/edit"
-                  element={
-                    <ProtectedRoute>
-                      <EditGhost />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="upload" element={<Upload />} />
-                <Route path="profile/:username" element={<Profile />} />
-                <Route path="community" element={<Community />} />
-                <Route path="about" element={<About />} />
-                <Route path="login" element={<Login />} />
-                <Route path="register" element={<Register />} />
-                <Route path="reset-password" element={<ResetPassword />} />
-                <Route
-                  path="settings"
-                  element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="index.html" element={<Navigate to="/" replace />} />
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
-          </MdpProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <BrowserRouter basename={basename}>
+          <AuthProvider>
+            <MdpProvider>
+              <ScrollToTop />
+              <RecoveryRedirect />
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route index element={<Home />} />
+                  <Route path="browse" element={<Browse />} />
+                  <Route path="ghost/:id" element={<GhostDetail />} />
+                  <Route
+                    path="ghost/:id/edit"
+                    element={
+                      <ProtectedRoute>
+                        <EditGhost />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="upload" element={<Upload />} />
+                  <Route path="profile/:username" element={<Profile />} />
+                  <Route path="community" element={<Community />} />
+                  <Route path="about" element={<About />} />
+                  <Route path="login" element={<Login />} />
+                  <Route path="register" element={<Register />} />
+                  <Route path="reset-password" element={<ResetPassword />} />
+                  <Route
+                    path="settings"
+                    element={
+                      <ProtectedRoute>
+                        <Settings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="index.html" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<NotFound />} />
+                </Route>
+              </Routes>
+            </MdpProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

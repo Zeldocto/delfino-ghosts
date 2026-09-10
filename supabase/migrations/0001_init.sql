@@ -104,15 +104,32 @@ create table if not exists public.ghosts (
 );
 
 -- Full-text search over the metadata a user actually types.
+--
+-- The document is built by a wrapper function because array_to_string() is
+-- only STABLE, and a generated column requires a strictly immutable
+-- expression. Flattening the tags inside an IMMUTABLE function is safe here:
+-- the inputs are plain text, so the result depends on nothing but its
+-- arguments.
+create or replace function public.ghost_search_document(
+  p_title       text,
+  p_description text,
+  p_tags        text[]
+)
+returns tsvector
+language sql
+immutable
+set search_path = ''
+as $$
+  select to_tsvector('simple',
+    coalesce(p_title, '') || ' ' ||
+    coalesce(p_description, '') || ' ' ||
+    coalesce(array_to_string(coalesce(p_tags, '{}'::text[]), ' '), '')
+  );
+$$;
+
 alter table public.ghosts
   add column if not exists search_vector tsvector
-  generated always as (
-    to_tsvector('simple',
-      coalesce(title, '') || ' ' ||
-      coalesce(description, '') || ' ' ||
-      coalesce(array_to_string(tags, ' '), '')
-    )
-  ) stored;
+  generated always as (public.ghost_search_document(title, description, tags)) stored;
 
 create index if not exists ghosts_search_idx      on public.ghosts using gin (search_vector);
 create index if not exists ghosts_created_at_idx  on public.ghosts (created_at desc, id desc);
@@ -189,12 +206,21 @@ declare
   v_username text;
   v_base     text;
   v_try      integer := 0;
+  v_reserved text[] := array[
+    'admin','root','system','support','moderator','mod','api','auth',
+    'profile','ghost','ghosts','browse','upload','community','about',
+    'login','register','settings','delfino','moonshine','new','edit'
+  ];
 begin
   v_username := btrim(coalesce(new.raw_user_meta_data ->> 'username', ''));
 
-  if v_username !~ '^[A-Za-z0-9_-]{3,24}$' then
+  -- Anything unusable — malformed, absent, or reserved — becomes a derived
+  -- name rather than a failed signup. Signup must never dead-end here: the
+  -- account is already being created, and the client cannot recover from an
+  -- exception raised inside this trigger.
+  if v_username !~ '^[A-Za-z0-9_-]{3,24}$' or lower(v_username) = any (v_reserved) then
     v_base := regexp_replace(split_part(coalesce(new.email, 'runner'), '@', 1), '[^A-Za-z0-9_-]', '', 'g');
-    if char_length(v_base) < 3 then
+    if char_length(v_base) < 3 or lower(v_base) = any (v_reserved) then
       v_base := 'runner';
     end if;
     v_username := left(v_base, 18) || '_' || substr(replace(new.id::text, '-', ''), 1, 5);
@@ -205,14 +231,14 @@ begin
       insert into public.profiles (id, username) values (new.id, v_username);
       return new;
     exception
-      when unique_violation then
+      -- Both cases resolve the same way: pick another name and retry, so a
+      -- collision or an unexpected constraint never blocks account creation.
+      when unique_violation or check_violation then
         v_try := v_try + 1;
         if v_try > 5 then
           raise exception 'username_taken' using errcode = '23505';
         end if;
-        v_username := left(v_username, 18) || '_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 5);
-      when check_violation then
-        raise exception 'username_invalid';
+        v_username := 'runner_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
     end;
   end loop;
 end;

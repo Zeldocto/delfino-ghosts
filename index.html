@@ -40,8 +40,18 @@
       })()
     </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="background:#0c1113">
+    <div id="root">
+      <!-- Replaced by React on mount. If this text is still here, the app
+           bundle did not load or did not run - check the browser console. -->
+      <div style="font-family: ui-monospace, monospace; color: #869799; padding: 40px 20px; max-width: 620px; margin: 0 auto">
+        <p style="color: #d8dfdd">Delfino Ghosts</p>
+        <p>Loading the archive&hellip;</p>
+        <noscript>
+          <p>This site needs JavaScript. The archive is a client-side application.</p>
+        </noscript>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
