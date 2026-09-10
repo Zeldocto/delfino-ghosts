@@ -1083,3 +1083,14 @@ hr {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Avatar preview sits under the URL field so a broken link is obvious before
+   saving rather than after. */
+.avatar-preview {
+  display: block;
+  margin-top: 8px;
+}
+.avatar-preview .avatar {
+  width: 64px;
+  height: 64px;
+}

@@ -43,8 +43,14 @@ create table if not exists public.profiles (
   constraint profiles_bio_len
     check (bio is null or char_length(bio) <= 500),
   -- Avatars are remote URLs; only https, no javascript: or data: payloads.
+  -- Length is checked separately: PostgreSQL rejects regex repetition bounds
+  -- above 255 at evaluation time, so {1,400} inside the pattern would make
+  -- every non-null avatar_url fail.
   constraint profiles_avatar_url_valid
-    check (avatar_url is null or avatar_url ~ '^https://[^\s<>"]{1,400}$'),
+    check (
+      avatar_url is null
+      or (avatar_url ~ '^https://[^\s<>"]+$' and char_length(avatar_url) <= 400)
+    ),
   constraint profiles_totals_nonnegative
     check (total_ghosts >= 0 and total_downloads >= 0)
 );

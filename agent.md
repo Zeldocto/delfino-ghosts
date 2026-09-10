@@ -118,7 +118,7 @@ src/components/   presentational + form logic
 src/pages/        one file per route
 src/hooks/        useTheme, useMdp, useDebounced, useDocumentTitle
 supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
-                      0004 level + time
+                      0004 level + time · 0005 avatar constraint fix
 supabase/tests/       local_stubs.sql · security_checks.sql
 ```
 
@@ -149,6 +149,12 @@ Key components:
   clears that inline style on mount so `html { background: var(--bg) }` governs. This already caused
   a bug once — an inline dark background survived the toggle and light mode only half-applied. If
   you touch either side, verify a toggle actually repaints.
+- **PostgreSQL caps regex repetition bounds at 255.** `{1,400}` in a CHECK does not fail to match —
+  it raises at evaluation time, so the constraint silently rejects everything. This shipped once and
+  made avatars unsaveable for everyone. Put length limits in `char_length()`, keep patterns to
+  unbounded quantifiers.
+- **Avatars are hotlinked**, so the field needs a direct image URL. `utils/avatar.ts` rewrites Imgur
+  page links and warns about hosts that serve viewer pages; Settings previews the image.
 - **`array_to_string` is STABLE, not IMMUTABLE.** It cannot appear in a generated column. That is why
   `ghost_search_document()` exists. Same trap awaits any other generated column.
 - **`handle_new_user()` must never raise.** An exception there means the account is created but the

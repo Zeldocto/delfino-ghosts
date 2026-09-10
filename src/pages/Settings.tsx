@@ -6,6 +6,7 @@ import { isUsernameAvailable, updateProfile } from '../lib/profiles'
 import { friendlyError } from '../lib/errors'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { validateUsername } from '../utils/validation'
+import { describeAvatarUrl, normalizeAvatarUrl } from '../utils/avatar'
 import { formatNumber } from '../utils/format'
 import { GHOST_LIMIT } from '../types'
 
@@ -21,6 +22,7 @@ export function Settings() {
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
 
   useEffect(() => {
     if (!profile) return
@@ -40,6 +42,8 @@ export function Settings() {
     )
   }
 
+  const avatarHint = describeAvatarUrl(avatarUrl)
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!profile) return
@@ -47,8 +51,13 @@ export function Settings() {
     const next: Record<string, string> = {}
     const usernameError = validateUsername(username)
     if (usernameError) next.username = usernameError
-    if (avatarUrl && !/^https:\/\/[^\s<>"]{1,400}$/.test(avatarUrl.trim())) {
-      next.avatarUrl = 'Avatar addresses must start with https://'
+    const trimmedAvatar = avatarUrl.trim()
+    if (trimmedAvatar) {
+      if (!/^https:\/\/[^\s<>"]+$/.test(trimmedAvatar)) {
+        next.avatarUrl = 'Avatar addresses must start with https:// and contain no spaces.'
+      } else if (trimmedAvatar.length > 400) {
+        next.avatarUrl = 'That address is too long (400 characters maximum).'
+      }
     }
     if (bio.length > 500) next.bio = 'Bios are at most 500 characters.'
     setErrors(next)
@@ -70,7 +79,7 @@ export function Settings() {
       await updateProfile(profile.id, {
         username: username.trim(),
         display_name: displayName.trim() || null,
-        avatar_url: avatarUrl.trim() || null,
+        avatar_url: trimmedAvatar || null,
         bio: bio.trim() || null,
       })
       await refreshProfile()
@@ -136,11 +145,40 @@ export function Settings() {
               id="settings-avatar"
               className="input"
               value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://..."
+              onChange={(e) => {
+                setAvatarUrl(e.target.value)
+                setAvatarFailed(false)
+              }}
+              onBlur={(e) => setAvatarUrl(normalizeAvatarUrl(e.target.value))}
+              placeholder="https://i.imgur.com/example.jpg"
               disabled={submitting}
             />
+            <span className="field-hint">
+              A direct link to the image file, not the page it sits on — it normally ends in .jpg or
+              .png. On Imgur, right-click the image and copy the image address; on ImgBB, use the
+              link labelled &ldquo;Direct link&rdquo;.
+            </span>
             {errors.avatarUrl && <span className="field-error">{errors.avatarUrl}</span>}
+            {!errors.avatarUrl && avatarHint && <span className="field-hint">{avatarHint}</span>}
+
+            {avatarUrl.trim() && !errors.avatarUrl && (
+              <span className="avatar-preview">
+                {avatarFailed ? (
+                  <span className="field-error">
+                    That link did not load as an image. Check it opens the picture directly in a new
+                    tab.
+                  </span>
+                ) : (
+                  <img
+                    className="avatar"
+                    src={avatarUrl.trim()}
+                    alt="Avatar preview"
+                    onError={() => setAvatarFailed(true)}
+                    onLoad={() => setAvatarFailed(false)}
+                  />
+                )}
+              </span>
+            )}
           </div>
 
           <div className="field">

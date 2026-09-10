@@ -157,6 +157,7 @@ supabase db push
 | `supabase/migrations/0002_storage.sql` | The `ghosts` Storage bucket and its object policies |
 | `supabase/migrations/0003_no_self_downloads.sql` | Stops an author's own downloads counting toward their ghosts |
 | `supabase/migrations/0004_level_and_time.sql` | Adds `level` and `time_ms`, folds level into search, adds a fastest-time sort |
+| `supabase/migrations/0005_fix_avatar_url_check.sql` | Repairs the avatar URL constraint (see below) |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -495,6 +496,17 @@ that Pages **Source** is set to **GitHub Actions** rather than a branch.
 **Verification emails do not arrive** — check the redirect URLs in section 2.3, and remember
 Supabase's built-in mail service is rate-limited and meant for development. Configure your own SMTP
 provider before opening the archive to a real community.
+
+**Avatars will not save** — fixed by migration 0005. The original constraint used a regex bound of
+`{1,400}`, and PostgreSQL caps repetition bounds at 255: rather than failing to match, the pattern
+raises `invalid regular expression: invalid repetition count(s)` whenever it is evaluated, so every
+non-null avatar was rejected. Worth remembering for any future CHECK — put length limits in
+`char_length()`, not in the pattern.
+
+**An avatar saves but shows nothing** — the field needs a direct link to the image file, not the
+page around it. `imgur.com/abc123.jpg` is a viewer page; `i.imgur.com/abc123.jpg` is the image. The
+settings form rewrites Imgur links automatically, warns about X, ImgBB and cloud-storage links, and
+previews the image so a broken link is visible before saving.
 
 **Uploads fail with a size or type error** — the Storage bucket enforces 2 MB and the `.smsghost`
 extension independently of the browser. Confirm `0002_storage.sql` ran.
