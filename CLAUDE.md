@@ -1,4 +1,4 @@
-# agent.md
+# CLAUDE.md
 
 Orientation for an AI agent picking this project up. The README is written for a human setting the
 site up; this file is about how the thing actually works, which parts are load-bearing, and the
