@@ -43,10 +43,8 @@ export function Home() {
   return (
     <div>
       <section className="home-hero">
-        <h1 className="home-title">DELFINO GHOSTS</h1>
         <p className="home-sub">
-          A community archive for Moonshine ghosts. Browse the shelf, take what you need — no account
-          required to download.
+          No account required to download.
         </p>
         <div className="home-actions">
           <Link className="btn btn-primary" to="/browse">
