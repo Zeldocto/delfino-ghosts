@@ -45,7 +45,7 @@ export function Home() {
       <section className="home-hero">
         <h1 className="home-title">DELFINO GHOSTS</h1>
         <p className="home-sub">
-          A community archive for Moonshine ghosts. Browse the shelf, take what you need — no account
+          A community archive for Moonshine ghosts. No account
           required to download.
         </p>
         <div className="home-actions">
