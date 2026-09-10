@@ -43,7 +43,7 @@ export function Home() {
   return (
     <div>
       <section className="home-hero">
-        <h1 className="home-title">DELFINO GHOSTS</h1>
+        <h1 className="home-title">DELFINO GHOSTS👻</h1>
         <p className="home-sub">
           A community archive for Moonshine ghosts. No account
           required to download.
