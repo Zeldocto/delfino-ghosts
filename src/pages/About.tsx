@@ -11,9 +11,7 @@ export function About() {
 
       <div className="prose" style={{ marginTop: 16 }}>
         <p>
-          Delfino Ghosts is a shared shelf for Super Mario Sunshine ghosts. Runners upload the files
-          Moonshine writes, everyone else takes them. There is no feed, no voting and no comments —
-          the archive exists so a ghost you recorded once is still findable years later.
+          Delfino Ghosts is a database for Super Mario Sunshine ghosts.
         </p>
 
         <h2>Moonshine</h2>
