@@ -11,9 +11,7 @@ export function About() {
 
       <div className="prose" style={{ marginTop: 16 }}>
         <p>
-          Delfino Ghosts is a shared shelf for Super Mario Sunshine ghosts. Runners upload the files
-          Moonshine writes, everyone else takes them. There is no feed, no voting and no comments —
-          the archive exists so a ghost you recorded once is still findable years later.
+          Delfino Ghosts is a shared hub for players to upload their ghost files from Moonshine. This archive exists so we can come back years later and easily share and improve upon each other. 
         </p>
 
         <h2>Moonshine</h2>
@@ -36,13 +34,13 @@ export function About() {
         <p>
           When you pick a file to upload, the site reads that header in your browser to check the
           container is intact and to pre-fill the form. The bytes themselves are stored and served
-          untouched — what you download is exactly what was uploaded.
+          untouched.
         </p>
 
         <h2>Uploading</h2>
         <p>
           Sign in and open <Link to="/upload">Upload</Link>. You can drop a whole folder of ghosts
-          at once — each file is read on arrival, so titles and versions arrive filled in, and you
+          at once. Each file is read on arrival, so titles and versions arrive filled in, and you
           can adjust each one before sending. A description is optional but makes a ghost far more
           useful to the next person: route, setup, what to watch for. Each account can hold up to {GHOST_LIMIT} ghosts; you can delete
           your own at any time to make room.
