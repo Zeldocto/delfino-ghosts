@@ -48,9 +48,12 @@ export async function listGhosts({
   return { ghosts, total: ghosts[0]?.total_count ?? 0 }
 }
 
-/** Levels that currently have at least one ghost, with their counts. */
-export async function fetchLevelsInUse(): Promise<LevelFacet[]> {
-  const { data, error } = await supabase.rpc('levels_in_use')
+/**
+ * Levels that currently have at least one ghost, with their counts. Pass a
+ * userId to scope both the levels and the counts to that runner's ghosts.
+ */
+export async function fetchLevelsInUse(userId?: string): Promise<LevelFacet[]> {
+  const { data, error } = await supabase.rpc('levels_in_use', { p_user: userId ?? null })
   if (error) throw error
   return (data ?? []) as LevelFacet[]
 }
