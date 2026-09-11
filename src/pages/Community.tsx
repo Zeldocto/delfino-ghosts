@@ -70,7 +70,7 @@ export function Community() {
       </div>
 
       <div className="listing" style={{ marginTop: 10 }}>
-        <div className="listing-head" aria-hidden="true">
+        <div className="listing-head listing-head--rank" aria-hidden="true">
           <span />
           <span>Runner</span>
           <span className="cell-num">Ghosts</span>
