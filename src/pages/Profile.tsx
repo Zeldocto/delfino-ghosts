@@ -2,20 +2,31 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { GhostList } from '../components/GhostList'
 import { Pagination } from '../components/Pagination'
+import { SortSelector } from '../components/SortSelector'
+import { LevelSelector } from '../components/LevelSelector'
 import { Notice } from '../components/Notices'
 import { AuthorName } from '../components/AuthorName'
 import { getProfileByUsername } from '../lib/profiles'
-import { listGhosts } from '../lib/ghosts'
+import { fetchLevelsInUse, listGhosts } from '../lib/ghosts'
 import { friendlyError } from '../lib/errors'
 import { useAuth } from '../lib/auth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatMonthYear, formatNumber } from '../utils/format'
-import { GHOST_LIMIT, PAGE_SIZE, type GhostListing, type Profile as ProfileRecord } from '../types'
+import {
+  GHOST_LIMIT,
+  PAGE_SIZE,
+  readSort,
+  type GhostListing,
+  type LevelFacet,
+  type Profile as ProfileRecord,
+} from '../types'
 
 export function Profile() {
   const { username = '' } = useParams()
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()
+  const sort = readSort(params.get('sort'))
+  const level = params.get('level') ?? ''
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
 
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
@@ -23,6 +34,8 @@ export function Profile() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [ghostsLoading, setGhostsLoading] = useState(true)
+  const [levels, setLevels] = useState<LevelFacet[]>([])
+  const [levelsLoading, setLevelsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
 
@@ -52,12 +65,32 @@ export function Profile() {
     }
   }, [username])
 
+  // Only this runner's levels, with this runner's counts.
+  useEffect(() => {
+    if (!profile) return
+    let active = true
+    setLevelsLoading(true)
+    fetchLevelsInUse(profile.id)
+      .then((result) => {
+        if (active) setLevels(result)
+      })
+      .catch(() => {
+        if (active) setLevels([])
+      })
+      .finally(() => {
+        if (active) setLevelsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [profile])
+
   useEffect(() => {
     if (!profile) return
     let active = true
     setGhostsLoading(true)
 
-    listGhosts({ userId: profile.id, sort: 'recent', page, pageSize: PAGE_SIZE })
+    listGhosts({ userId: profile.id, sort, level: level || undefined, page, pageSize: PAGE_SIZE })
       .then((result) => {
         if (!active) return
         setGhosts(result.ghosts)
@@ -73,7 +106,15 @@ export function Profile() {
     return () => {
       active = false
     }
-  }, [profile, page])
+  }, [profile, sort, level, page])
+
+  function updateParam(key: string, value: string | null) {
+    const next = new URLSearchParams(params)
+    if (value === null) next.delete(key)
+    else next.set(key, value)
+    if (key !== 'page') next.delete('page')
+    setParams(next)
+  }
 
   if (loading) {
     return (
@@ -158,12 +199,37 @@ export function Profile() {
         <h2>Ghosts</h2>
       </div>
 
-      <div style={{ marginTop: 10 }}>
+      <div className="toolbar" style={{ marginTop: 10 }}>
+        <LevelSelector
+          value={level}
+          levels={levels}
+          loading={levelsLoading}
+          onChange={(value) => updateParam('level', value || null)}
+        />
+        <SortSelector value={sort} onChange={(value) => updateParam('sort', value)} />
+      </div>
+
+      {level && (
+        <p className="filter-note">
+          Showing <strong>{level}</strong> only.{' '}
+          <button type="button" className="btn btn-quiet btn-sm" onClick={() => updateParam('level', null)}>
+            Clear filter
+          </button>
+        </p>
+      )}
+
+      <div>
         <GhostList
           ghosts={ghosts}
           loading={ghostsLoading}
           showAuthor={false}
-          emptyMessage={isSelf ? 'You have not uploaded a ghost yet.' : 'No ghosts uploaded yet.'}
+          emptyMessage={
+            level
+              ? `No ${level} ghosts here.`
+              : isSelf
+                ? 'You have not uploaded a ghost yet.'
+                : 'No ghosts uploaded yet.'
+          }
         />
       </div>
 
@@ -172,11 +238,7 @@ export function Profile() {
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
-          onPageChange={(next) => {
-            const params2 = new URLSearchParams(params)
-            params2.set('page', String(next))
-            setParams(params2)
-          }}
+          onPageChange={(next) => updateParam('page', String(next))}
         />
       )}
     </div>
