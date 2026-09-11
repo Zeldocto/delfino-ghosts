@@ -44,6 +44,12 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'time', label: 'Fastest time' },
 ]
 
+/** Parses a `?sort=` value, falling back to the default for anything unknown. */
+export function readSort(value: string | null): SortKey {
+  const match = SORT_OPTIONS.find((option) => option.value === value)
+  return match ? match.value : 'recent'
+}
+
 export interface LevelFacet {
   level: string
   ghost_count: number
