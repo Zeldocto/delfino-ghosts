@@ -56,8 +56,7 @@ export function About() {
 
         <h2>TAS</h2>
         <p>
-          A ghost marked TAS was produced with tool assistance — frame advance, scripted input, a
-          bot — rather than played in one sitting by hand. Neither is better than the other, but they
+          A ghost marked TAS was produced with tool assistance, rather than played in one sitting by hand. They
           are not comparable, so tool-assisted entries carry a small computer icon in every listing.
           Mark your uploads honestly.
         </p>
