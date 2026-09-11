@@ -748,6 +748,11 @@ hr {
 .rank-row:hover {
   background: var(--bg-hover);
 }
+/* Community header shares the rank-row grid so its titles sit over the numbers. */
+.listing-head--rank {
+  grid-template-columns: 2.5rem minmax(0, 1fr) 6rem 7rem;
+  gap: 12px;
+}
 .rank-index {
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
