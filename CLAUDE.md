@@ -119,7 +119,7 @@ src/pages/        one file per route
 src/hooks/        useTheme, useMdp, useDebounced, useDocumentTitle
 supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0004 level + time · 0005 avatar constraint fix
-                      0006 level filter
+                      0006 level filter · 0007 per-user levels_in_use
 supabase/tests/       local_stubs.sql · security_checks.sql
 ```
 
