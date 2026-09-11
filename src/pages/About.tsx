@@ -43,7 +43,7 @@ export function About() {
           at once. Each file is read on arrival, so titles and versions arrive filled in, and you
           can adjust each one before sending. A description is optional but makes a ghost far more
           useful to the next person: route, setup, what to watch for. Each account can hold up to {GHOST_LIMIT} ghosts; you can delete
-          your own at any time to make room.
+          your own at any time to make room. This is due to storage limitations, please don't abuse it.
         </p>
 
         <h2>Downloading</h2>
