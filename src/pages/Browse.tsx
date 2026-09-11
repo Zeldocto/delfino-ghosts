@@ -3,13 +3,14 @@ import { useSearchParams } from 'react-router-dom'
 import { GhostList } from '../components/GhostList'
 import { SearchBar } from '../components/SearchBar'
 import { SortSelector } from '../components/SortSelector'
+import { LevelSelector } from '../components/LevelSelector'
 import { Pagination } from '../components/Pagination'
 import { Notice } from '../components/Notices'
-import { listGhosts } from '../lib/ghosts'
+import { fetchLevelsInUse, listGhosts } from '../lib/ghosts'
 import { friendlyError } from '../lib/errors'
 import { useDebounced } from '../hooks/useDebounced'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { PAGE_SIZE, SORT_OPTIONS, type GhostListing, type SortKey } from '../types'
+import { PAGE_SIZE, SORT_OPTIONS, type GhostListing, type LevelFacet, type SortKey } from '../types'
 
 function readSort(value: string | null): SortKey {
   const match = SORT_OPTIONS.find((option) => option.value === value)
@@ -21,6 +22,7 @@ export function Browse() {
   const [params, setParams] = useSearchParams()
 
   const sort = readSort(params.get('sort'))
+  const level = params.get('level') ?? ''
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
   const [query, setQuery] = useState(params.get('q') ?? '')
   const search = useDebounced(query, 300)
@@ -29,6 +31,8 @@ export function Browse() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [levels, setLevels] = useState<LevelFacet[]>([])
+  const [levelsLoading, setLevelsLoading] = useState(true)
 
   // Keep the URL in step with the search box so results stay shareable.
   useEffect(() => {
@@ -42,12 +46,30 @@ export function Browse() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
+  // Fetched once: the list of levels changes far more slowly than the listing.
+  useEffect(() => {
+    let active = true
+    fetchLevelsInUse()
+      .then((result) => {
+        if (active) setLevels(result)
+      })
+      .catch(() => {
+        if (active) setLevels([])
+      })
+      .finally(() => {
+        if (active) setLevelsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   useEffect(() => {
     let active = true
     setLoading(true)
     setError(null)
 
-    listGhosts({ search, sort, page, pageSize: PAGE_SIZE })
+    listGhosts({ search, sort, level: level || undefined, page, pageSize: PAGE_SIZE })
       .then((result) => {
         if (!active) return
         setGhosts(result.ghosts)
@@ -66,7 +88,7 @@ export function Browse() {
     return () => {
       active = false
     }
-  }, [search, sort, page])
+  }, [search, sort, level, page])
 
   function updateParam(key: string, value: string | null) {
     const next = new URLSearchParams(params)
@@ -84,8 +106,23 @@ export function Browse() {
 
       <div className="toolbar">
         <SearchBar value={query} onChange={setQuery} />
+        <LevelSelector
+          value={level}
+          levels={levels}
+          loading={levelsLoading}
+          onChange={(value) => updateParam('level', value || null)}
+        />
         <SortSelector value={sort} onChange={(value) => updateParam('sort', value)} />
       </div>
+
+      {level && (
+        <p className="filter-note">
+          Showing <strong>{level}</strong> only.{' '}
+          <button type="button" className="btn btn-quiet btn-sm" onClick={() => updateParam('level', null)}>
+            Clear filter
+          </button>
+        </p>
+      )}
 
       {error && <Notice tone="error">{error}</Notice>}
 
@@ -93,9 +130,13 @@ export function Browse() {
         ghosts={ghosts}
         loading={loading}
         emptyMessage={
-          search
-            ? `No ghosts match "${search}". Try a level name, a category or an author.`
-            : 'The archive is empty. Upload the first ghost.'
+          search && level
+            ? `No ${level} ghosts match "${search}".`
+            : search
+              ? `No ghosts match "${search}". Try a level name, a category or an author.`
+              : level
+                ? `No ghosts uploaded for ${level} yet.`
+                : 'The archive is empty. Upload the first ghost.'
         }
       />
 

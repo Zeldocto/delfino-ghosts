@@ -119,11 +119,16 @@ src/pages/        one file per route
 src/hooks/        useTheme, useMdp, useDebounced, useDocumentTitle
 supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0004 level + time · 0005 avatar constraint fix
+                      0006 level filter
 supabase/tests/       local_stubs.sql · security_checks.sql
 ```
 
 Key components:
 
+- **`list_ghosts` is the single listing query** used by Browse, Home and profiles. It takes search,
+  sort, level and user filters and returns the page plus `total_count` in one round trip. Its
+  argument list has changed twice; call it with **named arguments** so a future filter does not
+  break callers.
 - **`utils/time.ts`** — the only place times are parsed or formatted. `utils/levels.ts` holds the
   episode suggestions and the `BH3` → `Bianco Hills 3` code expansion used for filename hints.
 - **`AuthorName`** — the *only* place a username is rendered. It decides MDP styling and tooltip.

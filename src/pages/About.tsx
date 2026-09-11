@@ -11,7 +11,9 @@ export function About() {
 
       <div className="prose" style={{ marginTop: 16 }}>
         <p>
-          Delfino Ghosts is a database for Super Mario Sunshine ghosts.
+          Delfino Ghosts is a shared shelf for Super Mario Sunshine ghosts. Runners upload the files
+          Moonshine writes, everyone else takes them. There is no feed, no voting and no comments —
+          the archive exists so a ghost you recorded once is still findable years later.
         </p>
 
         <h2>Moonshine</h2>
@@ -34,13 +36,13 @@ export function About() {
         <p>
           When you pick a file to upload, the site reads that header in your browser to check the
           container is intact and to pre-fill the form. The bytes themselves are stored and served
-          untouched.
+          untouched — what you download is exactly what was uploaded.
         </p>
 
         <h2>Uploading</h2>
         <p>
           Sign in and open <Link to="/upload">Upload</Link>. You can drop a whole folder of ghosts
-          at once. Each file is read on arrival, so titles and versions arrive filled in, and you
+          at once — each file is read on arrival, so titles and versions arrive filled in, and you
           can adjust each one before sending. A description is optional but makes a ghost far more
           useful to the next person: route, setup, what to watch for. Each account can hold up to {GHOST_LIMIT} ghosts; you can delete
           your own at any time to make room.
@@ -56,7 +58,8 @@ export function About() {
 
         <h2>TAS</h2>
         <p>
-          A ghost marked TAS was produced with tool assistance, rather than played in one sitting by hand. They
+          A ghost marked TAS was produced with tool assistance — frame advance, scripted input, a
+          bot — rather than played in one sitting by hand. Neither is better than the other, but they
           are not comparable, so tool-assisted entries carry a small computer icon in every listing.
           Mark your uploads honestly.
         </p>
@@ -65,7 +68,7 @@ export function About() {
         <p>
           The Most Download Player is whoever currently has the highest total of counted downloads
           added up across all of their ghosts. Not the most uploads, not the single most popular
-          ghost, the sum. Their name shimmers wherever it appears on the site. It is calculated from
+          ghost — the sum. Their name shimmers wherever it appears on the site. It is calculated from
           live figures, so it moves to whoever is on top at that moment. Standings are on the{' '}
           <Link to="/community">Community</Link> page.
         </p>

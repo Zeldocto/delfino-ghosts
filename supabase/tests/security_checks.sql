@@ -138,13 +138,21 @@ select username, total_downloads from public.current_mdp();
 
 \echo ''
 \echo '=== listing ================================================'
+-- Named arguments, so adding a filter to list_ghosts does not break these.
 \echo 'PASS if: search matches title, author prefix and description'
-select title, author_username from public.list_ghosts('bianco',null,null,5,0);
-select title, author_username from public.list_ghosts('doge',null,null,5,0);
-select title from public.list_ghosts('clean run',null,null,5,0);
+select title, author_username from public.list_ghosts(p_search => 'bianco', p_limit => 5);
+select title, author_username from public.list_ghosts(p_search => 'doge', p_limit => 5);
+select title from public.list_ghosts(p_search => 'clean run', p_limit => 5);
 
 \echo 'PASS if: ordered by downloads, highest first'
-select title, download_count from public.list_ghosts(null,'downloads',null,3,0);
+select title, download_count from public.list_ghosts(p_sort => 'downloads', p_limit => 3);
+
+\echo 'PASS if: the level filter narrows to Bianco Hills 3 only'
+-- Act as the owner: RLS refuses the update otherwise, which is the point.
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false) \g /dev/null
+update public.ghosts set level = 'Bianco Hills 3' where title like 'Bianco%';
+select title, level from public.list_ghosts(p_level => 'bianco hills 3', p_limit => 10);
+select level, ghost_count from public.levels_in_use();
 
 \echo ''
 \echo '=== deletion ==============================================='

@@ -158,6 +158,7 @@ supabase db push
 | `supabase/migrations/0003_no_self_downloads.sql` | Stops an author's own downloads counting toward their ghosts |
 | `supabase/migrations/0004_level_and_time.sql` | Adds `level` and `time_ms`, folds level into search, adds a fastest-time sort |
 | `supabase/migrations/0005_fix_avatar_url_check.sql` | Repairs the avatar URL constraint (see below) |
+| `supabase/migrations/0006_level_filter.sql` | Adds a level filter to `list_ghosts` and the `levels_in_use()` facet |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -233,6 +234,7 @@ GIN on `search_vector`.
 | `ghosts_after_change()` | Maintains the profile aggregates |
 | `record_authenticated_download(uuid)` | The only path that may move a counter. `SECURITY DEFINER`, granted to `authenticated` only |
 | `list_ghosts(...)` | Paged, sorted, searched listing; returns the page and the total in one query |
+| `levels_in_use()` | Levels that currently have ghosts, with counts, for the Browse filter |
 | `top_players(int)`, `community_stats()`, `current_mdp()` | Read the maintained aggregates |
 | `username_available(text)` | Case-insensitive availability check |
 | `recompute_profile_stats()` | Maintenance only; not granted to any client role |
@@ -347,6 +349,16 @@ categories are not locked out by a dropdown.
 
 Both columns are nullable, because ghosts uploaded before this existed have neither. Browse shows a
 blank cell for those rather than hiding them.
+
+### Filtering Browse by level
+
+The Level dropdown next to Sort narrows the listing to one level — every Pinna Park 3 ghost, say.
+It only lists levels that actually have ghosts, with counts, so no option leads to an empty page.
+Matching happens in Postgres against the `lower(level)` index, so case differences between uploads
+collapse together, and the filter combines with both search and sorting: pick a level, sort by
+fastest time, and you have a per-level leaderboard.
+
+The filter lives in the URL (`?level=Pinna+Park+3`), so a filtered view can be linked or bookmarked.
 
 ### Uploading in bulk
 

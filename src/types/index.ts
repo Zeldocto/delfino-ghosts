@@ -44,6 +44,11 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'time', label: 'Fastest time' },
 ]
 
+export interface LevelFacet {
+  level: string
+  ghost_count: number
+}
+
 export interface Mdp {
   id: string
   username: string

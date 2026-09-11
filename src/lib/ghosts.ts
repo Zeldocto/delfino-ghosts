@@ -6,11 +6,13 @@ import {
   safeFilename,
   uploadGhostObject,
 } from './ghost/GhostStorage'
-import type { GhostListing, SortKey } from '../types'
+import type { GhostListing, LevelFacet, SortKey } from '../types'
 
 export interface ListGhostsParams {
   search?: string
   sort?: SortKey
+  /** Exact level to narrow to; matched case-insensitively in Postgres. */
+  level?: string
   userId?: string
   page?: number
   pageSize?: number
@@ -28,6 +30,7 @@ export interface ListGhostsResult {
 export async function listGhosts({
   search,
   sort = 'recent',
+  level,
   userId,
   page = 0,
   pageSize = 25,
@@ -35,6 +38,7 @@ export async function listGhosts({
   const { data, error } = await supabase.rpc('list_ghosts', {
     p_search: search?.trim() || null,
     p_sort: sort,
+    p_level: level?.trim() || null,
     p_user: userId ?? null,
     p_limit: pageSize,
     p_offset: page * pageSize,
@@ -42,6 +46,13 @@ export async function listGhosts({
   if (error) throw error
   const ghosts = (data ?? []) as GhostListing[]
   return { ghosts, total: ghosts[0]?.total_count ?? 0 }
+}
+
+/** Levels that currently have at least one ghost, with their counts. */
+export async function fetchLevelsInUse(): Promise<LevelFacet[]> {
+  const { data, error } = await supabase.rpc('levels_in_use')
+  if (error) throw error
+  return (data ?? []) as LevelFacet[]
 }
 
 export async function getGhost(id: string): Promise<GhostListing | null> {
