@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Notice } from '../components/Notices'
 import { useAuth } from '../lib/auth'
-import { isUsernameAvailable, updateProfile } from '../lib/profiles'
+import { deleteOwnAccount, isUsernameAvailable, updateProfile } from '../lib/profiles'
 import { friendlyError } from '../lib/errors'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { validateUsername } from '../utils/validation'
@@ -23,6 +23,10 @@ export function Settings() {
   const [saved, setSaved] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [avatarFailed, setAvatarFailed] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!profile) return
@@ -88,6 +92,18 @@ export function Settings() {
       setFormError(friendlyError(err, 'Your profile could not be saved.'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteOwnAccount()
+      navigate('/', { replace: true })
+    } catch (err) {
+      setDeleteError(friendlyError(err, 'Your account could not be deleted. Nothing was changed.'))
+      setDeleting(false)
     }
   }
 
@@ -206,6 +222,55 @@ export function Settings() {
             </Link>
           </div>
         </form>
+
+        <div className="section-rule">
+          <h2>Delete account</h2>
+        </div>
+        <div className="prose" style={{ marginTop: 12 }}>
+          <p>
+            Deleting your account removes your email address and password, signs you out, and clears
+            your display name, avatar and bio. You will not be able to sign in again.
+          </p>
+          <p>
+            <strong>Your ghosts will not be deleted.</strong> They stay in the archive and remain
+            downloadable, credited to an anonymous name such as &ldquo;Anonymous 1&rdquo; instead of{' '}
+            {profile.username}. Their download counts are kept. Once the account is gone you can no
+            longer edit or remove them, so delete any ghosts you do not want to leave behind first.
+          </p>
+        </div>
+
+        {deleteError && <Notice tone="error">{deleteError}</Notice>}
+
+        {confirmingDelete ? (
+          <div className="notice notice-error" role="alertdialog" aria-labelledby="delete-confirm-title" style={{ marginTop: 12 }}>
+            <p id="delete-confirm-title" style={{ margin: '0 0 10px' }}>
+              <strong>Are you sure? This is irreversible.</strong> Your account will be permanently
+              deleted and cannot be recovered. Your {formatNumber(profile.total_ghosts)}{' '}
+              {profile.total_ghosts === 1 ? 'ghost' : 'ghosts'} will stay in the archive under an
+              anonymous name.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn btn-danger" onClick={handleDeleteAccount} disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Yes, delete my account'}
+              </button>
+              <button type="button" className="btn" onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-danger"
+            style={{ marginTop: 12 }}
+            onClick={() => {
+              setDeleteError(null)
+              setConfirmingDelete(true)
+            }}
+          >
+            Delete account
+          </button>
+        )}
       </div>
     </div>
   )

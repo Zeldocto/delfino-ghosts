@@ -120,6 +120,7 @@ src/hooks/        useTheme, useMdp, useDebounced, useDocumentTitle
 supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0004 level + time · 0005 avatar constraint fix
                       0006 level filter · 0007 per-user levels_in_use
+                      0008 account deletion · 0009 purge auth logs on deletion
 supabase/tests/       local_stubs.sql · security_checks.sql
 ```
 
@@ -167,6 +168,12 @@ Key components:
   unusable — malformed, reserved, taken — must fall back to a derived name.
 - **Batch uploads are sequential on purpose.** Parallel writes make per-row status unreliable and
   burst Storage. Hitting the 200 limit mid-run stops cleanly with prior uploads saved.
+- **Profiles outlive their login.** Since 0008, `profiles` no longer cascades from `auth.users`.
+  Deleting a user (via `delete_own_account()` or the dashboard) fires `anonymize_deleted_user()`,
+  which renames the profile `anonymous-N` / "Anonymous N", clears avatar and bio, sets
+  `deleted_at`, and drops that user's own `ghost_downloads` rows and `auth.audit_log_entries` (0009). Their ghosts stay. Owner-write
+  policies also require `is_active_account()` so the leftover access token can do nothing.
+  `anonymous` / `anonymous-<n>` usernames are reserved for these rows.
 - **Orphaned Storage objects** are possible if a delete removes the row but the Storage call fails.
   Unreachable through the archive, but they consume quota. No sweeper exists yet.
 

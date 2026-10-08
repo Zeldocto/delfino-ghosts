@@ -15,6 +15,7 @@ import { EditGhost } from './pages/EditGhost'
 import { Profile } from './pages/Profile'
 import { Community } from './pages/Community'
 import { About } from './pages/About'
+import { Privacy } from './pages/Privacy'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { ResetPassword } from './pages/ResetPassword'
@@ -96,6 +97,7 @@ export default function App() {
                   <Route path="profile/:username" element={<Profile />} />
                   <Route path="community" element={<Community />} />
                   <Route path="about" element={<About />} />
+                  <Route path="privacy" element={<Privacy />} />
                   <Route path="login" element={<Login />} />
                   <Route path="register" element={<Register />} />
                   <Route path="reset-password" element={<ResetPassword />} />

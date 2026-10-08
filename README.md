@@ -161,6 +161,8 @@ supabase db push
 | `supabase/migrations/0004_level_and_time.sql` | Adds `level` and `time_ms`, folds level into search, adds a fastest-time sort |
 | `supabase/migrations/0005_fix_avatar_url_check.sql` | Repairs the avatar URL constraint (see below) |
 | `supabase/migrations/0006_level_filter.sql` | Adds a level filter to `list_ghosts` and the `levels_in_use()` facet |
+| `supabase/migrations/0008_account_deletion.sql` | Self-serve account deletion: the login is removed, the profile becomes "Anonymous N", ghosts stay |
+| `supabase/migrations/0009_purge_auth_logs_on_deletion.sql` | Account deletion also removes that user's Supabase Auth sign-in log entries (with IP addresses) |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -251,8 +253,9 @@ RLS is enabled on all three tables.
 | `ghosts` | select | select; insert own; update own; delete own |
 | `ghost_downloads` | none | select own rows only; no write grants at all |
 
-There is deliberately no insert or delete policy on `profiles`: rows arrive via the signup trigger
-and leave via the `auth.users` cascade.
+There is deliberately no insert or delete policy on `profiles`: rows arrive via the signup trigger.
+Since migration 0008 they are never deleted — when the login is deleted, the profile is anonymised
+to "Anonymous N" and its ghosts stay in the archive.
 
 ### Storage policies
 

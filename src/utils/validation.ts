@@ -13,6 +13,8 @@ export function validateUsername(value: string): string | null {
   if (v.length > 24) return 'Usernames are at most 24 characters.'
   if (!USERNAME_PATTERN.test(v)) return 'Use letters, numbers, hyphens and underscores only.'
   if (RESERVED_USERNAMES.has(v.toLowerCase())) return 'That username is reserved.'
+  // Kept for deleted accounts; the database enforces the same rule.
+  if (/^anonymous(-[0-9]+)?$/i.test(v)) return 'That username is reserved.'
   return null
 }
 

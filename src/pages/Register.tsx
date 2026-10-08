@@ -138,6 +138,11 @@ export function Register() {
           {errors.password && <span className="field-error">{errors.password}</span>}
         </div>
 
+        <p className="field-hint" style={{ marginBottom: 12 }}>
+          You must be 13 or older. Your username, profile and uploads are public; see the{' '}
+          <Link to="/privacy">Privacy Policy</Link> for what is collected and where it goes.
+        </p>
+
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Creating account...' : 'Create account'}
         </button>

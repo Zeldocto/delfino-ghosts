@@ -15,6 +15,7 @@ export function Layout() {
         <div className="shell" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', width: '100%' }}>
           <span>Delfino Ghosts — a community archive for Moonshine ghosts.</span>
           <span className="nav-spacer" />
+          <Link to="/privacy">Privacy Policy</Link>
           <Link to="/about">About</Link>
           <a href={MOONSHINE_RELEASES_URL} target="_blank" rel="noopener noreferrer">
             Get Moonshine

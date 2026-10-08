@@ -27,6 +27,15 @@ create table auth.users (
   raw_user_meta_data jsonb default '{}'::jsonb
 );
 
+-- Same shape as Supabase's: no foreign key to auth.users, payload is json.
+create table auth.audit_log_entries (
+  instance_id uuid,
+  id uuid primary key default gen_random_uuid(),
+  payload json,
+  created_at timestamptz default now(),
+  ip_address varchar(64) default ''
+);
+
 -- Supabase reads the uid from the request JWT claims GUC.
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;

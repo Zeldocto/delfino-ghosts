@@ -185,3 +185,93 @@ having p.total_ghosts <> count(g.id)
 \echo 'PASS if: four policies, bucket public with a 2 MiB limit'
 select policyname, cmd from pg_policies where schemaname='storage' order by policyname;
 select id, public, file_size_limit from storage.buckets;
+
+\echo ''
+\echo '=== account deletion (needs 0008) =========================='
+set role postgres;
+insert into auth.users (id, email, raw_user_meta_data) values
+ ('55555555-5555-5555-5555-555555555555','leaver@example.com','{"username":"Leaver"}');
+update public.profiles set display_name='Leaver L', bio='bye', avatar_url='https://i.imgur.com/x.png'
+ where id='55555555-5555-5555-5555-555555555555';
+-- The local stub schema has no grants; give the roles what Supabase gives them.
+grant usage on schema storage to authenticated;
+grant select, insert, update, delete on storage.objects to authenticated;
+-- Sign-in history for Leaver, plus one for Doge that must survive.
+insert into auth.audit_log_entries (payload, ip_address) values
+ ('{"actor_id":"55555555-5555-5555-5555-555555555555","action":"login"}','203.0.113.5'),
+ ('{"actor_id":"55555555-5555-5555-5555-555555555555","action":"token_refreshed"}','203.0.113.5'),
+ ('{"actor_id":"00000000-0000-0000-0000-000000000000","action":"user_modified","traits":{"user_id":"55555555-5555-5555-5555-555555555555"}}','198.51.100.1'),
+ ('{"actor_id":"22222222-2222-2222-2222-222222222222","action":"login"}','192.0.2.9');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub','55555555-5555-5555-5555-555555555555',false) \g /dev/null
+insert into public.ghosts (user_id,title,file_path,original_filename,file_size)
+values ('55555555-5555-5555-5555-555555555555','Leaver run',
+        '55555555-5555-5555-5555-555555555555/l/g.smsghost','g.smsghost',100);
+-- Leaver downloads someone else's ghost, and Doge downloads Leaver's.
+select public.record_authenticated_download((select id from public.ghosts where title like 'Bianco%')) \g /dev/null
+select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false) \g /dev/null
+select public.record_authenticated_download((select id from public.ghosts where title='Leaver run')) \g /dev/null
+
+\echo '-- a guest cannot call delete_own_account -> permission denied'
+set role anon;
+select public.delete_own_account();
+
+\echo '-- Leaver deletes their account'
+set role authenticated;
+select set_config('request.jwt.claim.sub','55555555-5555-5555-5555-555555555555',false) \g /dev/null
+select public.delete_own_account();
+
+set role postgres;
+\echo 'PASS if: 0 (login is gone)'
+select count(*) from auth.users where id='55555555-5555-5555-5555-555555555555';
+\echo 'PASS if: anonymous-1 | Anonymous 1 | null avatar | null bio | deleted | 1 ghost | 1 download'
+select username, display_name, avatar_url is null as no_avatar, bio is null as no_bio,
+       deleted_at is not null as deleted, total_ghosts, total_downloads
+  from public.profiles where id='55555555-5555-5555-5555-555555555555';
+\echo 'PASS if: 0 (their sign-in log is purged, needs 0009) and 1 (Doge keeps theirs)'
+select count(*) from auth.audit_log_entries
+ where payload->>'actor_id'='55555555-5555-5555-5555-555555555555'
+    or payload->'traits'->>'user_id'='55555555-5555-5555-5555-555555555555';
+select count(*) from auth.audit_log_entries where payload->>'actor_id'='22222222-2222-2222-2222-222222222222';
+\echo 'PASS if: the ghost survives with its count of 1'
+select title, download_count from public.ghosts where title='Leaver run';
+\echo 'PASS if: 0 (their own download log is cleared) and 1 (downloads OF their ghost stay)'
+select count(*) from public.ghost_downloads where user_id='55555555-5555-5555-5555-555555555555';
+select count(*) from public.ghost_downloads d join public.ghosts g on g.id=d.ghost_id where g.title='Leaver run';
+
+\echo '-- the leftover token tries to act -> nothing changes'
+set role authenticated;
+select set_config('request.jwt.claim.sub','55555555-5555-5555-5555-555555555555',false) \g /dev/null
+update public.ghosts set title='vandalised' where title='Leaver run';
+delete from public.ghosts where title='Leaver run';
+update public.profiles set bio='back' where id='55555555-5555-5555-5555-555555555555';
+\echo 'PASS if: Leaver run | null bio'
+select title from public.ghosts where title in ('Leaver run','vandalised');
+select bio from public.profiles where id='55555555-5555-5555-5555-555555555555';
+\echo '-- leftover token uploads -> rejected by RLS'
+insert into public.ghosts (user_id,title,file_path,original_filename,file_size)
+values ('55555555-5555-5555-5555-555555555555','ghost from beyond',
+        '55555555-5555-5555-5555-555555555555/m/g.smsghost','g.smsghost',100);
+\echo '-- leftover token counts a download -> not_authenticated'
+select public.record_authenticated_download((select id from public.ghosts where title like 'Bianco%'));
+\echo '-- leftover token writes to Storage -> rejected by RLS'
+insert into storage.objects (bucket_id, name) values ('ghosts','55555555-5555-5555-5555-555555555555/n/g.smsghost');
+\echo '-- control: an active account can still write to its own folder (PASS if: INSERT 0 1)'
+select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false) \g /dev/null
+insert into storage.objects (bucket_id, name) values ('ghosts','22222222-2222-2222-2222-222222222222/n/g.smsghost');
+
+\echo '-- nobody can take an anonymous name'
+select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false) \g /dev/null
+\echo 'PASS if: check violation'
+update public.profiles set username='Anonymous-2' where id='22222222-2222-2222-2222-222222222222';
+set role postgres;
+insert into auth.users (id, email, raw_user_meta_data) values
+ ('66666666-6666-6666-6666-666666666666','sneaky@example.com','{"username":"anonymous-2"}');
+\echo 'PASS if: signup still succeeded, with a derived name (not anonymous-2)'
+select username from public.profiles where id='66666666-6666-6666-6666-666666666666';
+
+\echo '-- deleting by hand (dashboard) anonymises too, with the next number'
+delete from auth.users where id='66666666-6666-6666-6666-666666666666';
+\echo 'PASS if: anonymous-2 | Anonymous 2'
+select username, display_name from public.profiles where id='66666666-6666-6666-6666-666666666666';

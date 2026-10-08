@@ -43,3 +43,15 @@ export async function isUsernameAvailable(username: string): Promise<boolean> {
   if (error) throw error
   return Boolean(data)
 }
+
+/**
+ * Removes the caller's login. Their profile becomes "Anonymous N" and their
+ * ghosts stay in the archive — see migration 0008. Cannot be undone.
+ */
+export async function deleteOwnAccount(): Promise<void> {
+  const { error } = await supabase.rpc('delete_own_account')
+  if (error) throw error
+  // The login no longer exists, so a server-side sign-out would fail. Clearing
+  // the stored session is all that is left to do.
+  await supabase.auth.signOut({ scope: 'local' })
+}
