@@ -164,6 +164,7 @@ supabase db push
 | `supabase/migrations/0008_account_deletion.sql` | Self-serve account deletion: the login is removed, the profile becomes "Anonymous N", ghosts stay |
 | `supabase/migrations/0009_purge_auth_logs_on_deletion.sql` | Account deletion also removes that user's Supabase Auth sign-in log entries (with IP addresses) |
 | `supabase/migrations/0010_ghost_size_10mb.sql` | Raises the per-ghost size limit from 2 MiB to 10 MiB (table check and bucket) |
+| `supabase/migrations/0011_tas_filter.sql` | Adds a TAS-only filter to `list_ghosts` for the Browse checkbox |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -347,7 +348,10 @@ designation and its tooltip appear identically in Browse, ghost pages, profiles 
 
 Every ghost records which level it is for and what time it gets. Both are read out of the file where
 possible: Moonshine writes its run label as `Bianco Hills 3 - 0:37.337`, and the filename carries the
-same information as `BH3_37337`, so the upload form usually arrives already filled in.
+same information as `BH3_37337`, so the upload form usually arrives already filled in. The filename
+number is the clock time with the punctuation removed, not milliseconds: `BH4_100794` is 1:00.794.
+A label that starts with `TAS` (`TAS Bianco Hills 4 - 1:00.794`) ticks the TAS box and leaves the
+prefix out of the level, so TAS and RTA ghosts for the same stage share one level filter entry.
 
 Times are stored as integer milliseconds. The input accepts the ways runners actually write them —
 `14.387`, `0:37.337`, `1:23.456`, `1:23` — and displays them back in the shortest sensible form.
@@ -366,6 +370,8 @@ collapse together, and the filter combines with both search and sorting: pick a 
 fastest time, and you have a per-level leaderboard.
 
 The filter lives in the URL (`?level=Pinna+Park+3`), so a filtered view can be linked or bookmarked.
+The **TAS** checkbox beside it narrows the listing to tool-assisted runs (`?tas=1`) and combines with
+the level filter, search and sort.
 
 ### Uploading in bulk
 

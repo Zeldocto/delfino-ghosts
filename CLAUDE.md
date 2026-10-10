@@ -81,22 +81,28 @@ file and verified, not guessed:
 | Offset | Meaning |
 | --- | --- |
 | `0x00` | Magic `SGHF` |
-| `0x04` | Version word — `0x00040100` reads as 0.4.1 |
+| `0x04` | Version word — `0x00040100` reads as 0.4.1, `0x00060100` as 0.6.1 |
 | `0x08` | File length in bytes (**verified**: matches actual size) |
 | `0x0C` | CRC32 of the whole file with these four bytes zeroed (**verified**) |
 | `0x14` | CRC32 of the payload from `0x100` (**verified**) |
 | `0x20` | Disc id — `GMSJ` for the JP release |
-| `0x78` | Run label, 48 bytes, e.g. `Bianco Hills 3 - 0:37.337` (**inferred**, one sample). Split into level and time by `splitRunLabel()` |
-| `0xA8` | Category, 16 bytes, e.g. `Any percent` (**inferred**, one sample) |
+| `0x78` | Run label, 48 bytes, e.g. `Bianco Hills 3 - 0:37.337`, `TAS Bianco Hills 4 - 1:00.794` (**inferred**, three samples across 0.4 and 0.6). Split into level, time and TAS flag by `splitRunLabel()` |
+| `0xA8` | Category, 16 bytes, e.g. `Any percent` (**inferred**, three samples) |
 | `0x100` | Payload begins |
 
-The three CRC/size facts are solid — a flipped payload byte fails validation. The two string offsets
-come from a single file and could be wrong for other builds.
+The three CRC/size facts are solid — a flipped payload byte fails validation, and both hold for 0.6.
+The two string offsets are unchanged between 0.4 and 0.6.
+
+**Filenames** have changed shape between versions — `2026_09_05_BH3_37337_CDDABF1F_` (0.4) vs
+`2026_10_13_AS1_45645[DE2C7FB6]` (0.6). The number after the level code is the clock time with the
+punctuation stripped (`100794` = 1:00.794), **not** milliseconds; the two readings only agree under a
+minute. `decodeFilenameTime()` handles it. Filename hints are only a fallback for when the label
+cannot be read.
 
 **When the format changes:** add an entry to `PROFILES` in `GhostParser.ts`, keyed by
 `major.minor`. Nothing outside that file knows about byte offsets. Unrecognised versions still
-upload — they fall back to a permissive profile, warn the user, and are stored and served byte-for-
-byte unmodified. Never rewrite a ghost's bytes; download must return exactly what was uploaded.
+upload — they fall back to the last known string layout (readAscii returns null rather than garbage
+if it has moved), warn the user, and are stored and served byte-for-byte unmodified. Never rewrite a ghost's bytes; download must return exactly what was uploaded.
 
 If you can get the real format spec from panther03, reconciling it against this table is worthwhile.
 
@@ -121,15 +127,15 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0004 level + time · 0005 avatar constraint fix
                       0006 level filter · 0007 per-user levels_in_use
                       0008 account deletion · 0009 purge auth logs on deletion
-                      0010 ghost size limit 10 MiB
+                      0010 ghost size limit 10 MiB · 0011 TAS filter
 supabase/tests/       local_stubs.sql · security_checks.sql
 ```
 
 Key components:
 
 - **`list_ghosts` is the single listing query** used by Browse, Home and profiles. It takes search,
-  sort, level and user filters and returns the page plus `total_count` in one round trip. Its
-  argument list has changed twice; call it with **named arguments** so a future filter does not
+  sort, level, TAS and user filters and returns the page plus `total_count` in one round trip. Its
+  argument list has changed three times; call it with **named arguments** so a future filter does not
   break callers.
 - **`utils/time.ts`** — the only place times are parsed or formatted. `utils/levels.ts` holds the
   episode suggestions and the `BH3` → `Bianco Hills 3` code expansion used for filename hints.
