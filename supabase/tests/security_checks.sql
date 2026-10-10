@@ -154,6 +154,11 @@ update public.ghosts set level = 'Bianco Hills 3' where title like 'Bianco%';
 select title, level from public.list_ghosts(p_level => 'bianco hills 3', p_limit => 10);
 select level, ghost_count from public.levels_in_use();
 
+\echo 'PASS if: t | t  (TAS filter returns only TAS rows, and all of them)'
+select bool_and(is_tas) as only_tas,
+       max(total_count) = (select count(*) from public.ghosts where is_tas) as all_tas
+  from public.list_ghosts(p_tas => true, p_limit => 100);
+
 \echo ''
 \echo '=== deletion ==============================================='
 \echo '-- deleting someone elses ghost -> no rows affected (PASS if: 1)'
