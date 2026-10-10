@@ -182,7 +182,7 @@ having p.total_ghosts <> count(g.id)
 
 \echo ''
 \echo '=== storage ================================================'
-\echo 'PASS if: four policies, bucket public with a 2 MiB limit'
+\echo 'PASS if: four policies, bucket public with a 10 MiB limit'
 select policyname, cmd from pg_policies where schemaname='storage' order by policyname;
 select id, public, file_size_limit from storage.buckets;
 

@@ -121,6 +121,7 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0004 level + time · 0005 avatar constraint fix
                       0006 level filter · 0007 per-user levels_in_use
                       0008 account deletion · 0009 purge auth logs on deletion
+                      0010 ghost size limit 10 MiB
 supabase/tests/       local_stubs.sql · security_checks.sql
 ```
 

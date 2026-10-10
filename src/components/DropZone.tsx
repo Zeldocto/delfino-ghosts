@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { GHOST_EXTENSION } from '../types'
+import { GHOST_EXTENSION, MAX_GHOST_LABEL } from '../types'
 
 interface DropZoneProps {
   onFiles: (files: File[]) => void
@@ -94,7 +94,7 @@ export function DropZone({ onFiles, disabled = false, hint }: DropZoneProps) {
         {dragging ? 'Drop to add these ghosts' : 'Drop ghost files here, or click to browse'}
       </p>
       <p className="dropzone-hint" id={`${inputId}-hint`}>
-        {hint ?? `Any number of ${GHOST_EXTENSION} files, up to 2 MB each.`}
+        {hint ?? `Any number of ${GHOST_EXTENSION} files, up to ${MAX_GHOST_LABEL} each.`}
       </p>
 
       <input

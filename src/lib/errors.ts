@@ -1,4 +1,4 @@
-import { GHOST_LIMIT } from '../types'
+import { GHOST_LIMIT, MAX_GHOST_LABEL } from '../types'
 
 /**
  * Turns Supabase/Postgres failures into something a person can act on. Raw
@@ -48,7 +48,7 @@ export function friendlyError(err: unknown, fallback = 'Something went wrong. Tr
     return 'Some of those values are not allowed. Check the form and try again.'
   }
   if (text.includes('payload too large') || text.includes('exceeded the maximum allowed size')) {
-    return 'That file is larger than the 2 MB limit.'
+    return `That file is larger than the ${MAX_GHOST_LABEL} limit.`
   }
   if (text.includes('mime type') || text.includes('invalid_mime_type')) {
     return 'That file type is not accepted here.'

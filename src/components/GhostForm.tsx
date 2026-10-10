@@ -6,7 +6,7 @@ import { parseTags, validateDescription, validateTitle } from '../utils/validati
 import { validateTimeInput } from '../utils/time'
 import { LEVEL_SUGGESTIONS } from '../utils/levels'
 import { formatBytes } from '../utils/format'
-import { GHOST_EXTENSION } from '../types'
+import { GHOST_EXTENSION, MAX_GHOST_LABEL } from '../types'
 
 export interface GhostFormValues {
   title: string
@@ -274,7 +274,7 @@ export function GhostForm({
         <span className="field-hint" id={`${ids.file}-hint`}>
           {mode === 'edit'
             ? `Currently ${existingFilename}. Choose a file only if you want to replace it.`
-            : `A single ${GHOST_EXTENSION} file, up to 2 MB.`}
+            : `A single ${GHOST_EXTENSION} file, up to ${MAX_GHOST_LABEL}.`}
         </span>
         {fieldErrors.file && <span className="field-error">{fieldErrors.file}</span>}
       </div>

@@ -1,4 +1,4 @@
-import { GHOST_EXTENSION, MAX_GHOST_BYTES } from '../../types'
+import { GHOST_EXTENSION, MAX_GHOST_BYTES, MAX_GHOST_LABEL } from '../../types'
 import { GhostFormatError, parseGhostFile, type ParsedGhost } from './GhostParser'
 
 export interface ValidationResult {
@@ -32,7 +32,7 @@ export async function validateGhostFile(file: File): Promise<ValidationResult> {
   }
 
   if (file.size > MAX_GHOST_BYTES) {
-    errors.push(`Ghosts are limited to ${MAX_GHOST_BYTES / 1024 / 1024} MB. This one is larger.`)
+    errors.push(`Ghosts are limited to ${MAX_GHOST_LABEL}. This one is larger.`)
     return { ok: false, errors, warnings, parsed: null }
   }
 

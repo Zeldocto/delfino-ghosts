@@ -111,7 +111,7 @@ See [section 4](#4-database-setup).
 
 The Storage bucket is created by `supabase/migrations/0002_storage.sql`, so there is nothing to
 click. After running it, check **Storage** and confirm a bucket named `ghosts` exists, is marked
-public, and has a 2 MB file size limit.
+public, and has a 10 MB file size limit (set by `0010_ghost_size_10mb.sql`).
 
 The bucket is public on purpose: guests must be able to download ghosts. Public means *readable* —
 writes are still governed by the policies in that same file, which only allow an authenticated user
@@ -163,6 +163,7 @@ supabase db push
 | `supabase/migrations/0006_level_filter.sql` | Adds a level filter to `list_ghosts` and the `levels_in_use()` facet |
 | `supabase/migrations/0008_account_deletion.sql` | Self-serve account deletion: the login is removed, the profile becomes "Anonymous N", ghosts stay |
 | `supabase/migrations/0009_purge_auth_logs_on_deletion.sql` | Account deletion also removes that user's Supabase Auth sign-in log entries (with IP addresses) |
+| `supabase/migrations/0010_ghost_size_10mb.sql` | Raises the per-ghost size limit from 2 MiB to 10 MiB (table check and bucket) |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -179,6 +180,7 @@ createdb delfino_test
 psql -d delfino_test -f supabase/tests/local_stubs.sql
 psql -d delfino_test -f supabase/migrations/0001_init.sql
 psql -d delfino_test -f supabase/migrations/0002_storage.sql
+psql -d delfino_test -f supabase/migrations/0010_ghost_size_10mb.sql
 psql -d delfino_test -f supabase/tests/security_checks.sql
 ```
 
@@ -209,7 +211,7 @@ they are run. What follows is an inventory so you know what should exist afterwa
 | `user_id` | Owner; set from `auth.uid()` by the insert trigger, immutable afterwards |
 | `title`, `description` | 1–100 and ≤2000 characters |
 | `file_path` | Storage key. A CHECK constraint requires it to start with `user_id/` and contain no `..` |
-| `original_filename`, `file_size` | Size capped at 2 MiB |
+| `original_filename`, `file_size` | Size capped at 10 MiB |
 | `level` | Which level the ghost is for, e.g. `Bianco Hills 3`. Free text, trimmed on write, up to 48 chars |
 | `time_ms` | The run's time in whole milliseconds. Integer so it sorts and compares; formatted for display in the frontend |
 | `is_tas` | The TAS flag |
@@ -410,7 +412,7 @@ boundary. Here is what actually holds, and what does not.
 
 **Enforced by Supabase Storage**
 
-- 2 MiB per object and an allowed MIME list, set on the bucket itself.
+- 10 MiB per object and an allowed MIME list, set on the bucket itself.
 - Write policies keyed to `auth.uid()`, requiring the `.smsghost` extension and the expected folder
   depth — so no user can write into, overwrite or delete another user's folder.
 
@@ -525,7 +527,7 @@ page around it. `imgur.com/abc123.jpg` is a viewer page; `i.imgur.com/abc123.jpg
 settings form rewrites Imgur links automatically, warns about X, ImgBB and cloud-storage links, and
 previews the image so a broken link is visible before saving.
 
-**Uploads fail with a size or type error** — the Storage bucket enforces 2 MB and the `.smsghost`
+**Uploads fail with a size or type error** — the Storage bucket enforces 10 MB and the `.smsghost`
 extension independently of the browser. Confirm `0002_storage.sql` ran.
 
 **Download counts are not moving** — counting only happens for signed-in users who are not the

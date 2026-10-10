@@ -80,6 +80,8 @@ export interface PlayerRanking {
 }
 
 export const GHOST_LIMIT = 200
-export const MAX_GHOST_BYTES = 2 * 1024 * 1024
+/** Must match the bucket's file_size_limit and the ghosts_file_size_range check (migration 0010). */
+export const MAX_GHOST_BYTES = 10 * 1024 * 1024
+export const MAX_GHOST_LABEL = `${MAX_GHOST_BYTES / 1024 / 1024} MB`
 export const GHOST_EXTENSION = '.smsghost'
 export const PAGE_SIZE = 25

@@ -12,7 +12,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatNumber, pluralize } from '../utils/format'
 import { parseTags } from '../utils/validation'
 import { parseTimeInput } from '../utils/time'
-import { GHOST_EXTENSION, GHOST_LIMIT } from '../types'
+import { GHOST_EXTENSION, GHOST_LIMIT, MAX_GHOST_LABEL } from '../types'
 
 function emptyValues(): GhostFormValues {
   return { title: '', description: '', level: '', time: '', isTas: false, moonshineVersion: '', tags: [] }
@@ -277,8 +277,8 @@ export function Upload() {
           disabled={atLimit || uploading}
           hint={
             remaining === null
-              ? `Any number of ${GHOST_EXTENSION} files, up to 2 MB each.`
-              : `Any number of ${GHOST_EXTENSION} files, up to 2 MB each. Room for ${formatNumber(remaining)} more.`
+              ? `Any number of ${GHOST_EXTENSION} files, up to ${MAX_GHOST_LABEL} each.`
+              : `Any number of ${GHOST_EXTENSION} files, up to ${MAX_GHOST_LABEL} each. Room for ${formatNumber(remaining)} more.`
           }
         />
       </div>
