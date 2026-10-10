@@ -75,6 +75,7 @@ export function Upload() {
         values.time = suggestion.time ?? ''
         values.moonshineVersion = suggestion.moonshineVersion ?? ''
         values.tags = suggestion.tags ?? []
+        values.isTas = suggestion.isTas ?? false
       }
       if (!values.title) {
         values.title = entry.file.name.replace(/\.smsghost$/i, '').replace(/_+/g, ' ').trim()

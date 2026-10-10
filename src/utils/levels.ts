@@ -13,6 +13,9 @@ const WORLDS = [
 ]
 
 export const LEVEL_SUGGESTIONS: string[] = [
+  // Moonshine labels the opening stage "Airstrip 1"; matching it keeps the
+  // Browse level filter from splitting one stage into two entries.
+  'Airstrip 1',
   'Delfino Plaza',
   ...WORLDS.flatMap((world) => Array.from({ length: 8 }, (_, i) => `${world} ${i + 1}`)),
   'Corona Mountain',
@@ -20,6 +23,7 @@ export const LEVEL_SUGGESTIONS: string[] = [
 
 /** Short codes Moonshine uses in filenames, e.g. BH3 -> Bianco Hills 3. */
 const CODES: Record<string, string> = {
+  AS: 'Airstrip',
   BH: 'Bianco Hills',
   RH: 'Ricco Harbor',
   GB: 'Gelato Beach',

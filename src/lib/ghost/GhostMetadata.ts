@@ -27,23 +27,66 @@ export const EMPTY_METADATA: GhostMetadataInput = {
 /**
  * Moonshine writes its run label as "<level> - <time>", e.g.
  * "Bianco Hills 3 - 0:37.337". Split it so the upload form arrives filled in.
+ *
+ * TAS runs carry a prefix, "TAS Bianco Hills 4 - 1:00.794". The prefix becomes
+ * the TAS flag rather than part of the level, so the level filter groups TAS
+ * and RTA ghosts for the same stage together.
  */
-export function splitRunLabel(label: string): { level: string | null; time: string | null } {
-  const match = /^(.*?)\s*[-\u2013\u2014]\s*((?:\d+:)?(?:\d+:)?\d+(?:\.\d{1,3})?)$/.exec(label.trim())
-  if (!match) return { level: null, time: null }
+export function splitRunLabel(label: string): { level: string | null; time: string | null; isTas: boolean } {
+  let text = label.trim()
+  const tasPrefix = /^TAS\b[\s:-]*/i.exec(text)
+  const isTas = tasPrefix !== null
+  if (tasPrefix) text = text.slice(tasPrefix[0].length)
+
+  const match = /^(.*?)\s*[-\u2013\u2014]\s*((?:\d+:)?(?:\d+:)?\d+(?:\.\d{1,3})?)$/.exec(text)
+  if (!match) return { level: null, time: null, isTas }
 
   const level = match[1].trim()
   const ms = parseTimeInput(match[2])
-  return { level: level || null, time: ms === null ? null : formatTime(ms) }
+  return { level: level || null, time: ms === null ? null : formatTime(ms), isTas }
 }
 
 /**
- * Filenames look like 2026_09_05_BH3_37337_CDDABF1F_.smsghost - date, level
- * code, milliseconds, checksum. Used when the run label is unavailable.
+ * The time in a filename is the displayed clock time with the punctuation
+ * removed, not a millisecond count: `1:00.794` is written `100794`. The two
+ * readings only agree under a minute, which is why the original 37-second
+ * sample never showed the difference. Verified against
+ * 2026_10_13_BH4_100794[208BB539], whose run label reads 1:00.794.
+ *
+ * Digits are read from the right: three of milliseconds, two of seconds, then
+ * minutes, and anything beyond two minute digits is hours.
+ */
+export function decodeFilenameTime(digits: string): number | null {
+  if (!/^\d{3,9}$/.test(digits)) return null
+  const millis = Number(digits.slice(-3))
+  const seconds = Number(digits.slice(-5, -3) || '0')
+  const rest = digits.slice(0, -5)
+  const minutes = Number(rest.slice(-2) || '0')
+  const hours = Number(rest.slice(0, -2) || '0')
+
+  // A seconds or minutes field of 60+ cannot be a clock reading.
+  if (seconds > 59 || (hours > 0 && minutes > 59)) return null
+
+  const ms = ((hours * 60 + minutes) * 60 + seconds) * 1000 + millis
+  return ms > 0 && ms <= 86_400_000 ? ms : null
+}
+
+/**
+ * Filenames are date, level code, time, checksum. Moonshine has written the
+ * checksum two ways:
+ *
+ *   2026_09_05_BH3_37337_CDDABF1F_.smsghost    (0.4)
+ *   2026_10_13_AS1_45645[DE2C7FB6].smsghost    (0.6)
+ *
+ * Used when the run label is unavailable. Browsers may also append " (1)" to
+ * a repeated download, which is dropped along with the bracketed checksum.
  */
 export function readFilenameHints(filename: string): { level: string | null; time: string | null } {
-  const stem = filename.replace(/\.smsghost$/i, '')
-  const parts = stem.split('_').filter(Boolean)
+  const stem = filename
+    .replace(/\.smsghost$/i, '')
+    .replace(/\s*\(\d+\)$/, '')
+    .replace(/\s*\[[0-9A-Fa-f]+\]/g, '_')
+  const parts = stem.split(/[_\s]+/).filter(Boolean)
 
   let level: string | null = null
   let time: string | null = null
@@ -52,12 +95,10 @@ export function readFilenameHints(filename: string): { level: string | null; tim
     const expanded = expandLevelCode(parts[i])
     if (expanded && !level) {
       level = expanded
-      // Milliseconds normally follow the level code directly.
+      // The time normally follows the level code directly.
       const next = parts[i + 1]
-      if (next && /^\d{3,8}$/.test(next)) {
-        const ms = Number(next)
-        if (ms > 0 && ms <= 86_400_000) time = formatTime(ms)
-      }
+      const ms = next ? decodeFilenameTime(next) : null
+      if (ms !== null) time = formatTime(ms)
     }
   }
 
@@ -82,12 +123,13 @@ export function suggestMetadata(parsed: ParsedGhost, filename: string): Partial<
 
   // Level and time come from the run label when present, otherwise from the
   // filename Moonshine generated.
-  const fromLabel = parsed.title ? splitRunLabel(parsed.title) : { level: null, time: null }
+  const fromLabel = parsed.title ? splitRunLabel(parsed.title) : { level: null, time: null, isTas: false }
   const fromName = readFilenameHints(filename)
   const level = fromLabel.level ?? fromName.level
   const time = fromLabel.time ?? fromName.time
   if (level) suggestion.level = level.slice(0, 48)
   if (time) suggestion.time = time
+  if (fromLabel.isTas) suggestion.isTas = true
 
   const tags: string[] = []
   if (parsed.category) {

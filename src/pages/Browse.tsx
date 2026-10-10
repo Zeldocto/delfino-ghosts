@@ -23,6 +23,7 @@ export function Browse() {
 
   const sort = readSort(params.get('sort'))
   const level = params.get('level') ?? ''
+  const tasOnly = params.get('tas') === '1'
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
   const [query, setQuery] = useState(params.get('q') ?? '')
   const search = useDebounced(query, 300)
@@ -69,7 +70,7 @@ export function Browse() {
     setLoading(true)
     setError(null)
 
-    listGhosts({ search, sort, level: level || undefined, page, pageSize: PAGE_SIZE })
+    listGhosts({ search, sort, level: level || undefined, tasOnly, page, pageSize: PAGE_SIZE })
       .then((result) => {
         if (!active) return
         setGhosts(result.ghosts)
@@ -88,7 +89,7 @@ export function Browse() {
     return () => {
       active = false
     }
-  }, [search, sort, level, page])
+  }, [search, sort, level, tasOnly, page])
 
   function updateParam(key: string, value: string | null) {
     const next = new URLSearchParams(params)
@@ -113,6 +114,14 @@ export function Browse() {
           onChange={(value) => updateParam('level', value || null)}
         />
         <SortSelector value={sort} onChange={(value) => updateParam('sort', value)} />
+        <label className="checkbox toolbar-check">
+          <input
+            type="checkbox"
+            checked={tasOnly}
+            onChange={(e) => updateParam('tas', e.target.checked ? '1' : null)}
+          />
+          <span>TAS</span>
+        </label>
       </div>
 
       {level && (
@@ -130,7 +139,9 @@ export function Browse() {
         ghosts={ghosts}
         loading={loading}
         emptyMessage={
-          search && level
+          tasOnly
+            ? 'No TAS ghosts match these filters.'
+            : search && level
             ? `No ${level} ghosts match "${search}".`
             : search
               ? `No ghosts match "${search}". Try a level name, a category or an author.`

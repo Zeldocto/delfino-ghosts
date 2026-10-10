@@ -15,7 +15,7 @@
  * are therefore held in a version-keyed profile. When Moonshine changes its
  * format, add a new entry to `PROFILES` — nothing outside this file needs to
  * know. Unknown versions still parse: they fall back to a profile that reads
- * only the fixed preamble and reports the rest as unavailable.
+ * the fixed preamble and attempt the last known string layout.
  */
 
 export const GHOST_MAGIC = 'SGHF'
@@ -67,22 +67,28 @@ interface FormatProfile {
   category: [number, number] | null
 }
 
-const FALLBACK_PROFILE: FormatProfile = {
+/** String layout shared by every revision observed so far (0.4 and 0.6). */
+const LABELS_AT_0x78: FormatProfile = {
   payloadOffset: 0x100,
-  title: null,
-  category: null,
+  title: [0x78, 48],
+  category: [0xa8, 16],
 }
 
 /**
+ * Unknown versions still try the last known string layout. readAscii rejects
+ * anything that is not a clean printable string, so if the layout has moved
+ * this yields null rather than garbage, and the filename hints take over.
+ */
+const FALLBACK_PROFILE: FormatProfile = LABELS_AT_0x78
+
+/**
  * Keyed by `major.minor` of the container version word.
- * 0.4 is the revision produced by current Moonshine builds.
+ * 0.6 verified against 2026_10_13_AS1_45645[DE2C7FB6] and
+ * 2026_10_13_BH4_100794[208BB539]: same offsets and checksums as 0.4.
  */
 const PROFILES: Record<string, FormatProfile> = {
-  '0.4': {
-    payloadOffset: 0x100,
-    title: [0x78, 48],
-    category: [0xa8, 16],
-  },
+  '0.4': LABELS_AT_0x78,
+  '0.6': LABELS_AT_0x78,
 }
 
 // --- CRC32 -----------------------------------------------------------------

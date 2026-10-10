@@ -13,6 +13,8 @@ export interface ListGhostsParams {
   sort?: SortKey
   /** Exact level to narrow to; matched case-insensitively in Postgres. */
   level?: string
+  /** Only tool-assisted runs. False or omitted means no TAS filter. */
+  tasOnly?: boolean
   userId?: string
   page?: number
   pageSize?: number
@@ -31,6 +33,7 @@ export async function listGhosts({
   search,
   sort = 'recent',
   level,
+  tasOnly = false,
   userId,
   page = 0,
   pageSize = 25,
@@ -42,6 +45,9 @@ export async function listGhosts({
     p_user: userId ?? null,
     p_limit: pageSize,
     p_offset: page * pageSize,
+    // Sent only when set, so callers keep working against a database that
+    // has not had migration 0011 applied yet.
+    ...(tasOnly ? { p_tas: true } : {}),
   })
   if (error) throw error
   const ghosts = (data ?? []) as GhostListing[]

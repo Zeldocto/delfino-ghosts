@@ -92,6 +92,8 @@ export function GhostForm({
         setMoonshineVersion(suggestion.moonshineVersion)
       }
       if (suggestion.tags?.length && !tagInput.trim()) setTagInput(suggestion.tags.join(', '))
+      // Only ever switches TAS on; a label without the prefix says nothing either way.
+      if (suggestion.isTas) setIsTas(true)
     }
   }
 

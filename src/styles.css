@@ -434,6 +434,14 @@ hr {
 .toolbar-sort .select {
   width: auto;
 }
+.toolbar-check {
+  align-items: center;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+.toolbar-check input {
+  margin-top: 0;
+}
 
 /* --- the listing ---------------------------------------------------------- */
 
