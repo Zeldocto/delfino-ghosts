@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Notice } from '../components/Notices'
+import { LinkedDevices } from '../components/LinkedDevices'
 import { useAuth } from '../lib/auth'
 import { deleteOwnAccount, isUsernameAvailable, updateProfile } from '../lib/profiles'
 import { friendlyError } from '../lib/errors'
@@ -222,6 +223,8 @@ export function Settings() {
             </Link>
           </div>
         </form>
+
+        <LinkedDevices />
 
         <div className="section-rule">
           <h2>Delete account</h2>

@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "typecheck:moonshine": "tsc -p supabase/tsconfig.json",
+    "test:moonshine": "node --test --experimental-strip-types --no-warnings \"supabase/tests/moonshine/*.test.ts\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -16,6 +18,7 @@
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@types/node": "^22.20.2",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",

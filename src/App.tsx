@@ -20,6 +20,7 @@ import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { ResetPassword } from './pages/ResetPassword'
 import { Settings } from './pages/Settings'
+import { LinkDevice } from './pages/LinkDevice'
 import { NotFound } from './pages/NotFound'
 
 /** GitHub Pages serves the app from a subpath; the router must agree. */
@@ -106,6 +107,14 @@ export default function App() {
                     element={
                       <ProtectedRoute>
                         <Settings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="link"
+                    element={
+                      <ProtectedRoute>
+                        <LinkDevice />
                       </ProtectedRoute>
                     }
                   />

@@ -1,11 +1,6 @@
 import { supabase } from './supabase'
-import {
-  buildGhostPath,
-  removeGhostObject,
-  replaceGhostObject,
-  safeFilename,
-  uploadGhostObject,
-} from './ghost/GhostStorage'
+import { buildGhostPath, removeGhostObject, safeFilename, uploadGhostObject } from './ghost/GhostStorage'
+import { requestMoonshineIndex } from './moonshine'
 import type { GhostListing, LevelFacet, SortKey } from '../types'
 
 export interface ListGhostsParams {
@@ -153,6 +148,8 @@ export async function createGhost(input: CreateGhostInput): Promise<string> {
     throw error
   }
 
+  // Server-side validation decides whether Moonshine may offer this ghost.
+  requestMoonshineIndex(ghostId)
   return (data as { id: string }).id
 }
 
@@ -164,7 +161,7 @@ export interface UpdateGhostInput {
   isTas: boolean
   moonshineVersion: string | null
   tags: string[]
-  /** Optional replacement container; the stored path is reused. */
+  /** Optional replacement container, stored as a new object (see updateGhost). */
   file?: File | null
 }
 
@@ -182,13 +179,30 @@ export async function updateGhost(
     tags: input.tags,
   }
 
+  // A replacement goes to a new object rather than overwriting the old one:
+  // once the server has validated a file for Moonshine, Storage refuses to
+  // overwrite it in place (migration 0012), and moving the row to a new path
+  // clears that validation so the new bytes are checked afresh.
+  let newPath: string | null = null
   if (input.file) {
-    await replaceGhostObject(ghost.file_path, input.file)
+    const [ownerId] = ghost.file_path.split('/')
+    newPath = buildGhostPath(ownerId, ghost.id, `r${Date.now()}_${safeFilename(input.file.name)}`)
+    await uploadGhostObject(newPath, input.file)
+    patch.file_path = newPath
     patch.file_size = input.file.size
   }
 
   const { error } = await supabase.from('ghosts').update(patch).eq('id', ghost.id)
-  if (error) throw error
+  if (error) {
+    if (newPath) await removeGhostObject(newPath).catch(() => {})
+    throw error
+  }
+  if (newPath) {
+    await removeGhostObject(ghost.file_path).catch(() => {
+      /* the row no longer points here; an orphan is invisible to the archive */
+    })
+    requestMoonshineIndex(ghost.id)
+  }
 }
 
 /** Removes the row first: with the row gone the object is unreachable anyway. */

@@ -19,7 +19,8 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname, reason: 'auth' }} />
+    // The query string survives sign-in, so /link?code=... comes back with its code.
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search, reason: 'auth' }} />
   }
 
   return <>{children}</>

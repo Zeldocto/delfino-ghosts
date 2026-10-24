@@ -20,8 +20,8 @@ said explicitly this should not become a social network. Resist adding comments,
 follows or a CMS. Community and profile pages exist to support the archive, not to compete with it.
 
 - **Frontend:** React 18 + TypeScript + Vite, static, hosted on GitHub Pages
-- **Backend:** Supabase (Auth, Postgres, Storage). There is no server of our own and should not be
-  one unless an Edge Function becomes necessary
+- **Backend:** Supabase (Auth, Postgres, Storage), plus one Edge Function, `moonshine-api`, which
+  serves the Moonshine game client (see MOONSHINE-INTEGRATION.md). No other server of our own
 - **Live:** `https://<user>.github.io/delfino-ghosts/`
 
 ## Design language
@@ -75,23 +75,18 @@ schemas. Several checks deliberately raise errors; the error is the pass.
 
 ## The ghost file format
 
-Not documented anywhere upstream. What is in `GhostParser.ts` was reverse-engineered from one real
-file and verified, not guessed:
+Moonshine's specification now exists (snapshot "Moonshine PR27, 2026-10-24":
+`include/susamune/ghost_format.h`, `doc/ghost_format.md`, `scripts/validate_ghost.py`; GPL-3.0, not
+vendored here). The old reverse-engineered table was partly wrong: `0x04` is a `u16` format version
+followed by a `u16` header size (`0x0100`), so "0.4.1" was really **SGHF V4** and "0.6.1" **V6** —
+existing `moonshine_version` values in the database carry that misreading. `0x10` is the header CRC,
+`0x78` is the length-delimited ghost name and `0xA8` the source profile's name.
 
-| Offset | Meaning |
-| --- | --- |
-| `0x00` | Magic `SGHF` |
-| `0x04` | Version word — `0x00040100` reads as 0.4.1, `0x00060100` as 0.6.1 |
-| `0x08` | File length in bytes (**verified**: matches actual size) |
-| `0x0C` | CRC32 of the whole file with these four bytes zeroed (**verified**) |
-| `0x14` | CRC32 of the payload from `0x100` (**verified**) |
-| `0x20` | Disc id — `GMSJ` for the JP release |
-| `0x78` | Run label, 48 bytes, e.g. `Bianco Hills 3 - 0:37.337`, `TAS Bianco Hills 4 - 1:00.794` (**inferred**, three samples across 0.4 and 0.6). Split into level, time and TAS flag by `splitRunLabel()` |
-| `0xA8` | Category, 16 bytes, e.g. `Any percent` (**inferred**, three samples) |
-| `0x100` | Payload begins |
-
-The three CRC/size facts are solid — a flipped payload byte fails validation, and both hold for 0.6.
-The two string offsets are unchanged between 0.4 and 0.6.
+- `src/lib/ghost/GhostParser.ts` reads only what the upload form needs, at the spec's offsets.
+- `supabase/functions/_shared/ghost_format.ts` is the real validator: a strict port of
+  `validate_ghost.py`, kept identical by `supabase/tests/moonshine/validator_parity.test.ts`. If
+  Moonshine changes its format, port the change there and re-run the parity test against their new
+  validator — do not edit rules by hand.
 
 **Filenames** have changed shape between versions — `2026_09_05_BH3_37337_CDDABF1F_` (0.4) vs
 `2026_10_13_AS1_45645[DE2C7FB6]` (0.6). The number after the level code is the clock time with the
@@ -99,12 +94,14 @@ punctuation stripped (`100794` = 1:00.794), **not** milliseconds; the two readin
 minute. `decodeFilenameTime()` handles it. Filename hints are only a fallback for when the label
 cannot be read.
 
-**When the format changes:** add an entry to `PROFILES` in `GhostParser.ts`, keyed by
-`major.minor`. Nothing outside that file knows about byte offsets. Unrecognised versions still
-upload — they fall back to the last known string layout (readAscii returns null rather than garbage
-if it has moved), warn the user, and are stored and served byte-for-byte unmodified. Never rewrite a ghost's bytes; download must return exactly what was uploaded.
+Unrecognised versions still upload to the archive with a warning and are stored and served
+byte-for-byte; they are simply never offered to Moonshine. Never rewrite a ghost's bytes; download
+must return exactly what was uploaded.
 
-If you can get the real format spec from panther03, reconciling it against this table is worthwhile.
+**Validated files are immutable in Storage.** Once `ghost_moonshine_index` has a verdict for an
+object, the owner update/delete policies refuse it (0012). Replacing a ghost's file therefore means
+uploading a *new* object and pointing `ghosts.file_path` at it (`updateGhost()` does this); the
+trigger then drops the stale verdict and the website asks the function to validate the new bytes.
 
 ---
 
@@ -128,7 +125,10 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0006 level filter · 0007 per-user levels_in_use
                       0008 account deletion · 0009 purge auth logs on deletion
                       0010 ghost size limit 10 MiB · 0011 TAS filter
-supabase/tests/       local_stubs.sql · security_checks.sql
+                      0012 Moonshine API (validation index, device links, uploads)
+                      (0007 and 0011 are applied live but missing from git)
+supabase/functions/   moonshine-api/ (Edge Function) · _shared/ghost_format.ts (validator)
+supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ (node tests, PGlite)
 ```
 
 Key components:
@@ -188,10 +188,10 @@ Key components:
 
 ## Verifying changes
 
-There is no test runner. What exists:
-
 ```bash
-npm run build          # tsc -b then vite build; typecheck is real and strict
+npm run build                # tsc -b then vite build; typecheck is real and strict
+npm run test:moonshine       # Moonshine API + validator tests (PGlite, no Postgres install needed)
+npm run typecheck:moonshine  # Edge Function and test code
 ```
 
 For schema work, run the SQL suite (README section 4). For frontend behaviour, rendering the app in
@@ -204,10 +204,10 @@ Always check the built asset paths after touching Vite config.
 
 ## Known gaps, roughly in priority order
 
-1. **Ghost contents are validated only in the browser.** Someone can call Storage directly and write
-   arbitrary bytes under their own folder within the size, extension and MIME limits. Closing this
-   needs an Edge Function on the upload path. This is the largest remaining hole and has been offered
-   to the owner.
+1. **The archive still accepts unvalidated bytes.** Since 0012 the `moonshine-api` function validates
+   stored files server-side and only offers passing ones to Moonshine, but a website upload that
+   fails validation stays on the website. Routing browser uploads through the function would close
+   this.
 2. **No moderation tooling.** Removing a bad upload means going into Supabase by hand. No reporting
    flow, no admin role, no audit trail beyond `ghost_downloads`.
 3. **Download counting resists casual inflation, not determined inflation** across many accounts. The

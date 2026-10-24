@@ -1,94 +1,60 @@
 /**
  * GhostParser
  * ---------------------------------------------------------------------------
- * Reads the binary container Moonshine writes for a `.smsghost` file.
+ * Reads the header of the canonical `SGHF` file Moonshine writes for a
+ * `.smsghost`. Offsets follow Moonshine's own specification
+ * (include/susamune/ghost_format.h and doc/ghost_format.md, snapshot PR27,
+ * 2026-10-24); see MOONSHINE-INTEGRATION.md.
  *
- * The layout below was derived by inspecting a real ghost
- * (`2026_09_05_BH3_37337_CDDABF1F_.smsghost`). Two facts are verifiable rather
- * than guessed, and they are what the validator leans on:
- *
- *   - the word at 0x08 equals the file length in bytes
- *   - the word at 0x0C is CRC32 of the whole file with those four bytes zeroed
- *   - the word at 0x14 is CRC32 of the payload that begins at 0x100
- *
- * The string offsets (title, category) are inferred from a single sample and
- * are therefore held in a version-keyed profile. When Moonshine changes its
- * format, add a new entry to `PROFILES` — nothing outside this file needs to
- * know. Unknown versions still parse: they fall back to a profile that reads
- * the fixed preamble and attempt the last known string layout.
+ * This is upload-form assistance only. It checks the header fields and the
+ * three CRCs so the uploader gets fast feedback, and reads the labels used to
+ * pre-fill the form. Full structural validation - the part that decides
+ * whether a ghost may be offered to Moonshine - runs on the server
+ * (supabase/functions/_shared/ghost_format.ts). Files this parser does not
+ * recognise still upload to the archive and are stored byte-for-byte.
  */
 
 export const GHOST_MAGIC = 'SGHF'
 
-/** Offsets that have held across every observed revision of the container. */
-const OFF_MAGIC = 0x00
-const OFF_VERSION = 0x04
-const OFF_DECLARED_SIZE = 0x08
-const OFF_HEADER_CRC = 0x0c
-const OFF_BUILD_ID = 0x10
-const OFF_PAYLOAD_CRC = 0x14
-const OFF_GAME_ID = 0x20
+/** SGHF versions Moonshine's reference validator reads (V1/V2 were test-only). */
+export const KNOWN_VERSIONS = [3, 4, 5, 6, 7, 8, 9]
 
-export interface GhostVersion {
-  major: number
-  minor: number
-  patch: number
-  raw: number
-}
+const HEADER_SIZE = 0x100
+const OFF_VERSION = 0x04 // u16
+const OFF_HEADER_SIZE = 0x06 // u16
+const OFF_FILE_SIZE = 0x08
+const OFF_FILE_CRC = 0x0c // CRC-32 of the file with this word zeroed
+const OFF_HEADER_CRC = 0x10 // CRC-32 of the header with 0x0c..0x14 zeroed
+const OFF_PAYLOAD_CRC = 0x14 // CRC-32 of [0x100, fileSize)
+const OFF_GAME_ID = 0x20
+const OFF_AUTHOR_LEN = 0x5c
+const OFF_NAME_LEN = 0x5d
+const OFF_PROFILE_NAME_LEN = 0x5e
+const OFF_AUTHOR = 0x60 // 24 bytes
+const OFF_NAME = 0x78 // 48 bytes, e.g. "Bianco Hills 3 - 0:37.337"
+const OFF_PROFILE_NAME = 0xa8 // 16 bytes, e.g. "Any percent"
 
 export interface ParsedGhost {
   magic: string
-  version: GhostVersion
+  /** SGHF format version (not the Moonshine release number). */
+  version: number
   versionLabel: string
   /** Size the file claims to be, in bytes. */
   declaredSize: number
   /** Actual byte length of what we were handed. */
   actualSize: number
-  headerCrc: number
-  payloadCrc: number
-  buildId: number
   /** GameCube game id, e.g. GMSJ (Super Mario Sunshine, JP). */
   gameId: string
-  /** Label Moonshine stored with the run, e.g. "Bianco Hills 3 - 0:37.337". */
+  /** The ghost's name field; Moonshine writes "<level> - <time>". */
   title: string | null
-  /** Category label, e.g. "Any percent". */
+  /** The source profile's name, e.g. "Any percent". */
   category: string | null
+  author: string | null
   payloadOffset: number
   payloadSize: number
-  /** True when the version matched a profile we know the string layout for. */
+  /** True for a version Moonshine's validator reads. */
   recognisedVersion: boolean
   crcVerified: boolean
-}
-
-interface FormatProfile {
-  payloadOffset: number
-  /** [offset, maxBytes] of the run label, or null when the layout is unknown. */
-  title: [number, number] | null
-  category: [number, number] | null
-}
-
-/** String layout shared by every revision observed so far (0.4 and 0.6). */
-const LABELS_AT_0x78: FormatProfile = {
-  payloadOffset: 0x100,
-  title: [0x78, 48],
-  category: [0xa8, 16],
-}
-
-/**
- * Unknown versions still try the last known string layout. readAscii rejects
- * anything that is not a clean printable string, so if the layout has moved
- * this yields null rather than garbage, and the filename hints take over.
- */
-const FALLBACK_PROFILE: FormatProfile = LABELS_AT_0x78
-
-/**
- * Keyed by `major.minor` of the container version word.
- * 0.6 verified against 2026_10_13_AS1_45645[DE2C7FB6] and
- * 2026_10_13_BH4_100794[208BB539]: same offsets and checksums as 0.4.
- */
-const PROFILES: Record<string, FormatProfile> = {
-  '0.4': LABELS_AT_0x78,
-  '0.6': LABELS_AT_0x78,
 }
 
 // --- CRC32 -----------------------------------------------------------------
@@ -107,7 +73,7 @@ function crcTable(): Uint32Array {
   return table
 }
 
-/** CRC32 (IEEE) over a byte range, optionally treating four bytes as zero. */
+/** CRC32 (IEEE) over a byte range, optionally treating a span of bytes as zero. */
 export function crc32(bytes: Uint8Array, skipStart = -1, skipLength = 0): number {
   const table = crcTable()
   let crc = 0xffffffff
@@ -121,20 +87,20 @@ export function crc32(bytes: Uint8Array, skipStart = -1, skipLength = 0): number
 
 // --- Reading ---------------------------------------------------------------
 
-function readAscii(bytes: Uint8Array, offset: number, maxLength: number): string | null {
-  if (offset + maxLength > bytes.length) return null
-  let end = offset
-  const limit = offset + maxLength
-  while (end < limit && bytes[end] !== 0x00) end++
-  if (end === offset) return null
+/** Length-delimited printable ASCII, or null if the field is empty or malformed. */
+function readText(bytes: Uint8Array, offset: number, capacity: number, length: number): string | null {
+  if (length === 0 || length > capacity || offset + capacity > bytes.length) return null
   let out = ''
-  for (let i = offset; i < end; i++) {
+  for (let i = offset; i < offset + length; i++) {
     const c = bytes[i]
-    // Printable ASCII only. Anything else means we are not looking at a string.
     if (c < 0x20 || c > 0x7e) return null
     out += String.fromCharCode(c)
   }
   return out.trim() || null
+}
+
+function readMagic(bytes: Uint8Array): string {
+  return String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3])
 }
 
 export class GhostFormatError extends Error {
@@ -144,58 +110,42 @@ export class GhostFormatError extends Error {
   }
 }
 
-/** Parses a `.smsghost` container. Throws GhostFormatError on a non-ghost. */
+/** Parses a `.smsghost` header. Throws GhostFormatError on a non-ghost. */
 export function parseGhost(buffer: ArrayBuffer): ParsedGhost {
   const bytes = new Uint8Array(buffer)
-  if (bytes.length < 0x100) {
+  if (bytes.length < HEADER_SIZE) {
     throw new GhostFormatError('This file is too small to be a Moonshine ghost.')
   }
 
   const view = new DataView(buffer)
-  const magic = readAscii(bytes, OFF_MAGIC, 4)
+  const magic = readMagic(bytes)
   if (magic !== GHOST_MAGIC) {
     throw new GhostFormatError('This is not a Moonshine ghost file.')
   }
 
-  const rawVersion = view.getUint32(OFF_VERSION, false)
-  const version: GhostVersion = {
-    major: (rawVersion >>> 24) & 0xff,
-    minor: (rawVersion >>> 16) & 0xff,
-    patch: (rawVersion >>> 8) & 0xff,
-    raw: rawVersion,
-  }
-  const versionKey = `${version.major}.${version.minor}`
-  const profile = PROFILES[versionKey] ?? FALLBACK_PROFILE
-  const recognisedVersion = versionKey in PROFILES
+  const version = view.getUint16(OFF_VERSION, false)
+  const recognisedVersion = KNOWN_VERSIONS.includes(version) && view.getUint16(OFF_HEADER_SIZE, false) === HEADER_SIZE
+  const declaredSize = view.getUint32(OFF_FILE_SIZE, false)
+  const gameId = readText(bytes, OFF_GAME_ID, 4, 4) ?? ''
 
-  const declaredSize = view.getUint32(OFF_DECLARED_SIZE, false)
-  const headerCrc = view.getUint32(OFF_HEADER_CRC, false)
-  const buildId = view.getUint32(OFF_BUILD_ID, false)
-  const payloadCrc = view.getUint32(OFF_PAYLOAD_CRC, false)
-  const gameId = readAscii(bytes, OFF_GAME_ID, 4) ?? ''
-
-  const payloadOffset = Math.min(profile.payloadOffset, bytes.length)
-  const payloadSize = bytes.length - payloadOffset
-
-  const headerCrcOk = crc32(bytes, OFF_HEADER_CRC, 4) === headerCrc
-  const payloadCrcOk = crc32(bytes.subarray(payloadOffset)) === payloadCrc
+  const fileCrcOk = crc32(bytes, OFF_FILE_CRC, 4) === view.getUint32(OFF_FILE_CRC, false)
+  const headerCrcOk = crc32(bytes.subarray(0, HEADER_SIZE), OFF_FILE_CRC, 8) === view.getUint32(OFF_HEADER_CRC, false)
+  const payloadCrcOk = crc32(bytes.subarray(HEADER_SIZE)) === view.getUint32(OFF_PAYLOAD_CRC, false)
 
   return {
     magic,
     version,
-    versionLabel: `${version.major}.${version.minor}.${version.patch}`,
+    versionLabel: `V${version}`,
     declaredSize,
     actualSize: bytes.length,
-    headerCrc,
-    payloadCrc,
-    buildId,
     gameId,
-    title: profile.title ? readAscii(bytes, profile.title[0], profile.title[1]) : null,
-    category: profile.category ? readAscii(bytes, profile.category[0], profile.category[1]) : null,
-    payloadOffset,
-    payloadSize,
+    title: readText(bytes, OFF_NAME, 48, bytes[OFF_NAME_LEN]),
+    category: readText(bytes, OFF_PROFILE_NAME, 16, bytes[OFF_PROFILE_NAME_LEN]),
+    author: readText(bytes, OFF_AUTHOR, 24, bytes[OFF_AUTHOR_LEN]),
+    payloadOffset: HEADER_SIZE,
+    payloadSize: bytes.length - HEADER_SIZE,
     recognisedVersion,
-    crcVerified: headerCrcOk && payloadCrcOk,
+    crcVerified: fileCrcOk && headerCrcOk && payloadCrcOk,
   }
 }
 

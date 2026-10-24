@@ -58,8 +58,8 @@ export async function validateGhostFile(file: File): Promise<ValidationResult> {
 
   if (!parsed.recognisedVersion) {
     warnings.push(
-      `Container version ${parsed.versionLabel} is newer than this site knows about. ` +
-        'The file uploads and downloads unchanged, but details may be missing.',
+      `Ghost format ${parsed.versionLabel} is not one this site recognises. ` +
+        'The file uploads and downloads unchanged, but details may be missing and it will not be offered to Moonshine.',
     )
   }
 

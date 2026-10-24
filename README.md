@@ -165,6 +165,7 @@ supabase db push
 | `supabase/migrations/0009_purge_auth_logs_on_deletion.sql` | Account deletion also removes that user's Supabase Auth sign-in log entries (with IP addresses) |
 | `supabase/migrations/0010_ghost_size_10mb.sql` | Raises the per-ghost size limit from 2 MiB to 10 MiB (table check and bucket) |
 | `supabase/migrations/0011_tas_filter.sql` | Adds a TAS-only filter to `list_ghosts` for the Browse checkbox |
+| `supabase/migrations/0012_moonshine_api.sql` | Moonshine ghost-sharing API: server-side validation index, device linking, upload sessions, private `ghost-uploads` bucket. See [MOONSHINE-INTEGRATION.md](MOONSHINE-INTEGRATION.md) |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -187,6 +188,14 @@ psql -d delfino_test -f supabase/tests/security_checks.sql
 
 Several checks deliberately provoke errors — for those, the error *is* the passing result, and each
 block says what to expect.
+
+The Moonshine API (migration 0012 and the `moonshine-api` Edge Function) has its own suite that
+needs no PostgreSQL install — it runs Postgres in-process with PGlite:
+
+```bash
+npm run test:moonshine
+MOONSHINE_VALIDATOR=../scripts/validate_ghost.py npm run test:moonshine   # also compare with Moonshine's validator
+```
 
 The files are the authoritative SQL — they are commented throughout and are meant to be read before
 they are run. What follows is an inventory so you know what should exist afterwards.
@@ -312,6 +321,14 @@ On `storage.objects` for bucket `ghosts`:
 ---
 
 ## 6. How the system works
+
+### Moonshine API
+
+The Moonshine practice mod can browse, download and (when the player opts in) upload ghosts through
+the `moonshine-api` Edge Function. Ghost bytes are validated on the server against Moonshine's own
+format rules before they are offered to the game; players link a Wii or Dolphin by entering a short
+code at `/link`, and can unlink devices in Settings. Deployment steps, the full API contract and the
+open questions are in [MOONSHINE-INTEGRATION.md](MOONSHINE-INTEGRATION.md).
 
 ### Downloads and the counter
 
@@ -444,8 +461,9 @@ boundary. Here is what actually holds, and what does not.
   and both CRC32s are checked before upload, but a determined uploader can call Storage directly and
   put arbitrary bytes under their own folder within the size, extension and MIME limits. Ghosts are
   served as `application/octet-stream` for download rather than executed or rendered, so the
-  exposure is a junk file rather than code execution. Server-side content validation would need an
-  Edge Function on the upload path.
+  exposure is a junk file rather than code execution. Since migration 0012 the `moonshine-api` Edge
+  Function validates every ghost's stored bytes on the server, and only files that pass are offered
+  to Moonshine — but the website archive itself still accepts files that fail.
 - **Download counting resists casual inflation, not a determined one.** A signed-in user can add one
   count per ghost per hour, and could automate that across many accounts. Signup rate limits and the
   cooldown raise the cost; they do not eliminate it. The `ghost_downloads` log is there so tighter

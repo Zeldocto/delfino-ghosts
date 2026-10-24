@@ -33,15 +33,6 @@ export async function uploadGhostObject(path: string, file: File): Promise<void>
   if (error) throw error
 }
 
-export async function replaceGhostObject(path: string, file: File): Promise<void> {
-  const { error } = await supabase.storage.from(GHOST_BUCKET).upload(path, file, {
-    contentType: 'application/octet-stream',
-    cacheControl: '3600',
-    upsert: true,
-  })
-  if (error) throw error
-}
-
 export async function removeGhostObject(path: string): Promise<void> {
   const { error } = await supabase.storage.from(GHOST_BUCKET).remove([path])
   if (error) throw error

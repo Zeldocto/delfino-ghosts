@@ -119,8 +119,6 @@ export function suggestMetadata(parsed: ParsedGhost, filename: string): Partial<
     if (stem) suggestion.title = stem.slice(0, 100)
   }
 
-  if (parsed.recognisedVersion) suggestion.moonshineVersion = parsed.versionLabel
-
   // Level and time come from the run label when present, otherwise from the
   // filename Moonshine generated.
   const fromLabel = parsed.title ? splitRunLabel(parsed.title) : { level: null, time: null, isTas: false }
@@ -144,11 +142,12 @@ export function suggestMetadata(parsed: ParsedGhost, filename: string): Partial<
 /** Human-readable facts shown next to the file picker after a file is chosen. */
 export function describeParsedGhost(parsed: ParsedGhost): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = [
-    { label: 'Container', value: `${parsed.magic} v${parsed.versionLabel}` },
+    { label: 'Container', value: `${parsed.magic} ${parsed.versionLabel}` },
     { label: 'Game', value: parsed.gameId || 'unknown' },
   ]
   if (parsed.title) rows.push({ label: 'Recorded as', value: parsed.title })
   if (parsed.category) rows.push({ label: 'Category', value: parsed.category })
+  if (parsed.author) rows.push({ label: 'Author in file', value: parsed.author })
   rows.push({
     label: 'Integrity',
     value: parsed.crcVerified ? 'CRC32 checks passed' : 'CRC32 could not be confirmed',
