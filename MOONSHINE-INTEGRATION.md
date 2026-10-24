@@ -1,15 +1,14 @@
 # Delfino Ghosts × Moonshine: ghost-sharing integration
 
 Handoff for Moonshine's coding agent. It covers what the Delfino Ghosts service offers Moonshine,
-exactly how to call it, and what is still pending on our side.
+exactly how to call it, and what is still open on our side.
 
-> **Deployment status (2026-10-24): the API is implemented and tested, but not deployed yet.**
-> Every URL under `/functions/v1/moonshine-api` below returns `404` until the site owner runs the
-> deployment steps in §12. Treat those URLs as **placeholders that become live unchanged**; nothing
-> about their shape depends on deployment. The download URLs (public Storage) already work today
-> for the 121 ghosts in the archive.
+> **Deployment status (2026-10-24): live.** The API, database changes and website changes are
+> deployed. All 121 existing ghosts are validated and listed. The full flow was exercised on the
+> live project: device linking approved on the website, token refresh, upload validation, the
+> duplicate rules, and unlinking. Nothing test-related was left published.
 
-Contents: [1 Status](#1-status-deployed-vs-pending) · [2 URLs and keys](#2-urls-and-keys) ·
+Contents: [1 Status](#1-status-what-is-deployed) · [2 URLs and keys](#2-urls-and-keys) ·
 [3 Client flow](#3-client-flow-in-one-page) · [4 Conventions](#4-conventions) ·
 [5 Endpoints](#5-endpoints-with-real-examples) · [6 Catalogue entry](#6-the-catalogue-entry-catalogue_schema-1) ·
 [7 File compatibility](#7-file-compatibility) · [8 Errors](#8-error-codes) · [9 Limits](#9-limits-and-rate-limits) ·
@@ -20,19 +19,34 @@ Contents: [1 Status](#1-status-deployed-vs-pending) · [2 URLs and keys](#2-urls
 
 ---
 
-## 1. Status: deployed vs pending
+## 1. Status: what is deployed
 
 | Piece | State | How it was checked |
 | --- | --- | --- |
-| Website `zeldocto.github.io/delfino-ghosts` | **Live** (current version) | Fetched 2026-10-24 |
-| Supabase project `cvadewafbthfhvzgdgay` with migrations 0001–0011 | **Live** | Public RPCs answer with the 0007 and 0011 signatures (`levels_in_use(p_user)`, `list_ghosts(p_tas)`). Those two files are missing from the repo; see §14 |
-| Public `ghosts` Storage bucket (downloads) | **Live**: anonymous GET works, `Accept-Ranges: bytes`, `206` on Range | `curl` against a real object |
-| `ghosts` bucket size limit | **Unconfirmed**. The repo says 10 MiB (migration 0010), but bucket metadata is not readable with the public key | Owner must run the SQL in §14 |
-| Migration `0012_moonshine_api.sql` (tables, RPCs, policies, staging bucket) | **Pending**. In the repo, not applied | — |
-| Edge Function `moonshine-api` | **Pending**. In the repo, not deployed (`/functions/v1/moonshine-api/*` → 404) | `curl` 2026-10-24 |
-| Website `/link` approval page, Settings → Linked devices, upload-path changes | **Pending**. In the repo, not pushed to Pages | — |
-| Validation of the 121 existing ghosts (backfill) | **Pending**. Runs after deploy (§12.4) | Locally, all 121 pass Moonshine's own `validate_ghost.py` |
-| Tests | **Passing locally**: 19 tests, plus 3,121-input validator parity with `validate_ghost.py` | §12.5 |
+| Website `zeldocto.github.io/delfino-ghosts`, including `/link` and Settings → Linked devices | **Live** (commit `e58f4d2`) | GitHub Pages run succeeded |
+| Database migrations 0001–0012 | **Live** | 0012 objects and grants checked on the live DB. Service-only functions and private tables refuse the public key. 0007 and 0011 recovered from the live definitions into the repo |
+| Edge Function `moonshine-api` | **Live**, JWT verification off, rate-limit salt set | Answers with no key at all |
+| Public `ghosts` bucket (downloads) | **Live**: public, 10 MiB limit (10,485,760), anonymous GET, `206` on Range | Bucket row read on the live DB; `curl` |
+| Private `ghost-uploads` staging bucket | **Live**: not public, 1,297,992-byte limit, `application/octet-stream` only | Bucket row read on the live DB |
+| Validation of existing ghosts (backfill) | **Done**: 121 of 121 compatible. Every listed SHA-256 matches the bytes downloaded before deploy | Live catalogue compared with the corpus |
+| Live end-to-end check | **Passed**, on a real account | See below |
+| Tests | **Passing**: 19 tests, plus 3,121-input validator parity with `validate_ghost.py` | §12.5 |
+
+The live end-to-end check covered the following steps:
+1. Linked a device by approving its code at `/link`, and confirmed `/v1/me` showed the right account.
+2. Created an upload, then created it again with the same `Idempotency-Key`. The second call returned
+   the same session.
+3. Sent damaged bytes and got `422 sha256_mismatch`, retryable. Sent the real bytes and got
+   `validated` (V9).
+4. Cancelled the upload. Publishing it afterwards was refused with `upload_closed`, and the staged
+   object was swept.
+5. Re-uploaded the bytes of an existing ghost from the same account and got `already_published`
+   for that ghost. The same with another account's ghost got `409 duplicate_content`.
+6. Refreshed the token, which rotated both tokens and kept access working.
+7. Revoked the link from the device. Access then failed with `401 invalid_token`, and refreshing with
+   `400 invalid_grant`.
+
+The archive still holds exactly 121 ghosts afterwards.
 
 ---
 
@@ -40,9 +54,9 @@ Contents: [1 Status](#1-status-deployed-vs-pending) · [2 URLs and keys](#2-urls
 
 | What | Value | Status |
 | --- | --- | --- |
-| API base | `https://cvadewafbthfhvzgdgay.supabase.co/functions/v1/moonshine-api` | **placeholder until deploy** |
-| Capabilities | `GET {base}/v1/capabilities` | placeholder until deploy |
-| Player approval page | `https://zeldocto.github.io/delfino-ghosts/link` (optional `?code=XXXX-XXXX`) | placeholder until the website push |
+| API base | `https://cvadewafbthfhvzgdgay.supabase.co/functions/v1/moonshine-api` | **live** |
+| Capabilities | `GET {base}/v1/capabilities` | live |
+| Player approval page | `https://zeldocto.github.io/delfino-ghosts/link` (optional `?code=XXXX-XXXX`) | live |
 | Ghost downloads | `https://cvadewafbthfhvzgdgay.supabase.co/storage/v1/object/public/ghosts/<path>` | **live** |
 | Website ghost page | `https://zeldocto.github.io/delfino-ghosts/ghost/<id>` | live |
 | Supabase publishable key | `sb_publishable_mrh55bmXKXF_paQ7WTb3lA_oeJHWILU` | live; **intentionally public** (it ships in the website JS). **The Moonshine API does not need it.** It is only for calling the RPCs directly through PostgREST (§5.9) |
@@ -120,7 +134,7 @@ project host, timestamps converted to UTC, and long repeated objects shortened w
 ids are from that local run and are not valid anywhere.
 
 ```sh
-BASE=https://cvadewafbthfhvzgdgay.supabase.co/functions/v1/moonshine-api   # placeholder until deploy
+BASE=https://cvadewafbthfhvzgdgay.supabase.co/functions/v1/moonshine-api
 ```
 
 ### 5.1 `GET /v1/capabilities`
@@ -545,7 +559,7 @@ curl -s -X POST https://cvadewafbthfhvzgdgay.supabase.co/rest/v1/rpc/moonshine_l
 ```
 This returns the same `items`/`next_cursor`/`total`, but without `download_url` and `page_url`. Build
 the download URL as `https://cvadewafbthfhvzgdgay.supabase.co/storage/v1/object/public/ghosts/` +
-`file.path`, with each path segment URL-encoded. **Pending deploy** (migration 0012). The Edge
+`file.path`, with each path segment URL-encoded. This is live, but the Edge
 Function is the supported interface; prefer it.
 
 ---
@@ -771,7 +785,7 @@ info:
     catalogue_schema 1. Errors always use the ErrorEnvelope schema.
 servers:
   - url: https://cvadewafbthfhvzgdgay.supabase.co/functions/v1/moonshine-api
-    description: Production (pending deployment as of 2026-10-24)
+    description: Production (live since 2026-10-24)
 components:
   securitySchemes:
     deviceToken:
@@ -1161,7 +1175,7 @@ paths:
 | `supabase/functions/_shared/ghost_format.ts` | Strict TypeScript port of `validate_ghost.py` plus the 1,297,992-byte ceiling |
 | `supabase/scripts/moonshine_backfill.mjs` | One-off: validate the existing archive (public endpoints only) |
 | `supabase/tests/moonshine/*` | Tests (§12.5), fixture generator, Python oracle runner, PGlite harness |
-| `supabase/tests/standin_0007_0011.sql` | **Test-only** reconstruction of the two live-but-uncommitted migrations |
+| `supabase/migrations/0007_levels_in_use_per_user.sql`, `0011_tas_filter.sql` | Previously applied but never committed. Recovered verbatim from the live database's function definitions |
 | `src/pages/LinkDevice.tsx`, `src/components/LinkedDevices.tsx`, `src/lib/moonshine.ts` | Website: `/link` approval page; Settings → Linked devices |
 | `src/lib/ghosts.ts`, `src/lib/ghost/*`, `src/components/ProtectedRoute.tsx`, `src/App.tsx`, `src/pages/Settings.tsx` | Website: trigger validation after upload; replace files via a new object; sign-in keeps `?code=`; parser fixed to the real spec |
 
@@ -1337,21 +1351,17 @@ it's wrong.
 
 ## 14. Still needed from us (Delfino Ghosts)
 
-1. **Deploy** (§12.4): run migration 0012, deploy `moonshine-api` with `--no-verify-jwt`, run the
-   backfill, push the website. Until then every API URL here is a placeholder.
-2. **Confirm the deployed Storage limits** with the SQL in §12.4 step 1. The public key can't read
-   bucket metadata, so the live `ghosts` limit (10 MiB per the repo) is unverified.
-3. **Commit the original 0007 and 0011 migration files.** They are applied on the live project and
-   listed in the README, but missing from git. The test suite uses a clearly marked reconstruction
-   (`supabase/tests/standin_0007_0011.sql`), which must never be run on a real project.
-4. **Licence (decided).** `supabase/functions/_shared/ghost_format.ts` is a close port of Moonshine's
+Done on 2026-10-24: deployment (§12.4); confirming the live Storage limits; and recovering the
+0007/0011 migrations from the live database into the repo.
+
+1. **Licence (decided).** `supabase/functions/_shared/ghost_format.ts` is a close port of Moonshine's
    GPL-3.0 `validate_ghost.py`, so that file alone is GPL-3.0-or-later (notice at its top). The rest
    of the repository is unaffected. Let the Moonshine developer know, in case they want different
    terms.
-5. **Privacy page.** It should mention the new data: linked device names and last-used times, and
+2. **Privacy page.** It should mention the new data: linked device names and last-used times, and
    hashed (never raw) IP-based rate-limit keys kept for about a day. `src/pages/Privacy.tsx` has not
    been updated.
-6. **Real SMTP** (an existing known gap): device approval needs a website account, and Supabase's
+3. **Real SMTP** (an existing known gap): device approval needs a website account, and Supabase's
    built-in mail is rate-limited.
-7. After deploy: confirm the function is reachable without any `apikey` header (§12.4 step 4), and
-   tell the Moonshine developer the API is live.
+4. **Tell the Moonshine developer the API is live**, and pass on this document and the open questions
+   in §13.

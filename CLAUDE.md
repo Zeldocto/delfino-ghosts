@@ -126,7 +126,6 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0008 account deletion · 0009 purge auth logs on deletion
                       0010 ghost size limit 10 MiB · 0011 TAS filter
                       0012 Moonshine API (validation index, device links, uploads)
-                      (0007 and 0011 are applied live but missing from git)
 supabase/functions/   moonshine-api/ (Edge Function) · _shared/ghost_format.ts (validator)
 supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ (node tests, PGlite)
 ```

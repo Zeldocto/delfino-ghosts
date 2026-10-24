@@ -1,51 +1,23 @@
 -- ============================================================================
--- TEST-ONLY stand-ins for migrations 0007 and 0011
+-- Delfino Ghosts - 0011: TAS filter for list_ghosts
 -- ----------------------------------------------------------------------------
--- README and CLAUDE.md list 0007 (per-user levels_in_use) and 0011 (TAS filter
--- for list_ghosts), and the live project has both: on 2026-10-24 the public API
--- accepted levels_in_use(p_user) and list_ghosts(p_tas). The original files
--- were never committed. These reconstructions exist only so the local test
--- database matches the live signatures. NEVER run this against a real
--- project, and replace it with the real 0007/0011 files when they are found.
+-- Adds p_tas to list_ghosts for the Browse "TAS" checkbox: null means no
+-- filter, true only TAS runs, false only non-TAS runs.
+--
+-- RECOVERED 2026-10-24: this migration was applied to the live project but the
+-- file was never committed. The function body below is pg_get_functiondef()
+-- output from the live database, so it is exactly what is deployed. It is safe
+-- to re-run (it drops the 0006 signature and replaces the function).
 -- ============================================================================
 
-drop function if exists public.levels_in_use();
-create or replace function public.levels_in_use(p_user uuid default null)
-returns table (level text, ghost_count bigint)
-language sql
-stable
-set search_path = ''
-as $$
-  select min(g.level) as level, count(*) as ghost_count
-    from public.ghosts g
-   where g.level is not null and btrim(g.level) <> ''
-     and (p_user is null or g.user_id = p_user)
-   group by lower(g.level)
-   order by count(*) desc, lower(min(g.level)) asc;
-$$;
-grant execute on function public.levels_in_use(uuid) to anon, authenticated;
-
 drop function if exists public.list_ghosts(text, text, text, uuid, integer, integer);
-create or replace function public.list_ghosts(
-  p_search text default null,
-  p_sort   text default 'recent',
-  p_level  text default null,
-  p_user   uuid default null,
-  p_limit  integer default 25,
-  p_offset integer default 0,
-  p_tas    boolean default false
-)
-returns table (
-  id uuid, user_id uuid, title text, description text, level text, time_ms integer,
-  file_path text, original_filename text, file_size integer, is_tas boolean,
-  moonshine_version text, tags text[], download_count integer, created_at timestamptz,
-  updated_at timestamptz, author_username text, author_display_name text,
-  author_total_downloads bigint, total_count bigint
-)
-language plpgsql
-stable
-set search_path = ''
-as $$
+
+CREATE OR REPLACE FUNCTION public.list_ghosts(p_search text DEFAULT NULL::text, p_sort text DEFAULT 'recent'::text, p_level text DEFAULT NULL::text, p_user uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 25, p_offset integer DEFAULT 0, p_tas boolean DEFAULT NULL::boolean)
+ RETURNS TABLE(id uuid, user_id uuid, title text, description text, level text, time_ms integer, file_path text, original_filename text, file_size integer, is_tas boolean, moonshine_version text, tags text[], download_count integer, created_at timestamp with time zone, updated_at timestamp with time zone, author_username text, author_display_name text, author_total_downloads bigint, total_count bigint)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
 declare
   v_order  text;
   v_limit  integer := least(greatest(coalesce(p_limit, 25), 1), 100);
@@ -73,7 +45,7 @@ begin
       join public.profiles p on p.id = g.user_id
      where ($1::uuid is null or g.user_id = $1::uuid)
        and ($5::text is null or lower(g.level) = lower($5::text))
-       and (not $6::boolean or g.is_tas)
+       and ($6::boolean is null or g.is_tas = $6::boolean)
        and (
          $2::text is null
          or g.search_vector @@ websearch_to_tsquery('simple', $2::text)
@@ -84,8 +56,9 @@ begin
      order by %s
      limit $3 offset $4
   $q$, v_order)
-  using p_user, v_search, v_limit, v_offset, v_level, coalesce(p_tas, false);
+  using p_user, v_search, v_limit, v_offset, v_level, p_tas;
 end;
-$$;
+$function$;
+
 grant execute on function public.list_ghosts(text, text, text, uuid, integer, integer, boolean)
   to anon, authenticated;

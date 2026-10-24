@@ -19,10 +19,11 @@ export const MIGRATIONS = [
   'migrations/0004_level_and_time.sql',
   'migrations/0005_fix_avatar_url_check.sql',
   'migrations/0006_level_filter.sql',
-  'tests/standin_0007_0011.sql',
+  'migrations/0007_levels_in_use_per_user.sql',
   'migrations/0008_account_deletion.sql',
   'migrations/0009_purge_auth_logs_on_deletion.sql',
   'migrations/0010_ghost_size_10mb.sql',
+  'migrations/0011_tas_filter.sql',
   'migrations/0012_moonshine_api.sql',
 ]
 
