@@ -166,6 +166,7 @@ supabase db push
 | `supabase/migrations/0010_ghost_size_10mb.sql` | Raises the per-ghost size limit from 2 MiB to 10 MiB (table check and bucket) |
 | `supabase/migrations/0011_tas_filter.sql` | Adds a TAS-only filter to `list_ghosts` for the Browse checkbox |
 | `supabase/migrations/0012_moonshine_api.sql` | Moonshine ghost-sharing API: server-side validation index, device linking, upload sessions, private `ghost-uploads` bucket. See [MOONSHINE-INTEGRATION.md](MOONSHINE-INTEGRATION.md) |
+| `supabase/migrations/0013_moonshine_retention.sql` | Deletes linked-device records with the account and 30 days after unlinking; deletes finished upload sessions after 30 days |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.

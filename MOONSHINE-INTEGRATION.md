@@ -24,7 +24,7 @@ Contents: [1 Status](#1-status-what-is-deployed) · [2 URLs and keys](#2-urls-an
 | Piece | State | How it was checked |
 | --- | --- | --- |
 | Website `zeldocto.github.io/delfino-ghosts`, including `/link` and Settings → Linked devices | **Live** (commit `e58f4d2`) | GitHub Pages run succeeded |
-| Database migrations 0001–0012 | **Live** | 0012 objects and grants checked on the live DB. Service-only functions and private tables refuse the public key. 0007 and 0011 recovered from the live definitions into the repo |
+| Database migrations 0001–0013 | **Live** | 0012 objects and grants checked on the live DB. Service-only functions and private tables refuse the public key. 0007 and 0011 recovered from the live definitions into the repo |
 | Edge Function `moonshine-api` | **Live**, JWT verification off, rate-limit salt set | Answers with no key at all |
 | Public `ghosts` bucket (downloads) | **Live**: public, 10 MiB limit (10,485,760), anonymous GET, `206` on Range | Bucket row read on the live DB; `curl` |
 | Private `ghost-uploads` staging bucket | **Live**: not public, 1,297,992-byte limit, `application/octet-stream` only | Bucket row read on the live DB |
@@ -1170,6 +1170,7 @@ paths:
 | Path | What |
 | --- | --- |
 | `supabase/migrations/0012_moonshine_api.sql` | Everything in the database (below). One file; safe on the live DB; changes no existing rows |
+| `supabase/migrations/0013_moonshine_retention.sql` | Retention limits: device records are deleted with the account and 30 days after unlinking; finished upload sessions are deleted 30 days after they end |
 | `supabase/functions/moonshine-api/app.ts` | HTTP API (routing, auth, uploads, catalogue). Runtime-agnostic |
 | `supabase/functions/moonshine-api/index.ts` | Deno entry: wires Supabase RPC and Storage with the service-role key, which stays server-side |
 | `supabase/functions/_shared/ghost_format.ts` | Strict TypeScript port of `validate_ghost.py` plus the 1,297,992-byte ceiling |
@@ -1351,17 +1352,15 @@ it's wrong.
 
 ## 14. Still needed from us (Delfino Ghosts)
 
-Done on 2026-10-24: deployment (§12.4); confirming the live Storage limits; and recovering the
-0007/0011 migrations from the live database into the repo.
+Done on 2026-10-24: deployment (§12.4); confirming the live Storage limits; recovering the
+0007/0011 migrations from the live database into the repo; and updating the privacy policy for
+linked devices, uploads and abuse limits, with retention rules to match (migration 0013).
 
 1. **Licence (decided).** `supabase/functions/_shared/ghost_format.ts` is a close port of Moonshine's
    GPL-3.0 `validate_ghost.py`, so that file alone is GPL-3.0-or-later (notice at its top). The rest
    of the repository is unaffected. Let the Moonshine developer know, in case they want different
    terms.
-2. **Privacy page.** It should mention the new data: linked device names and last-used times, and
-   hashed (never raw) IP-based rate-limit keys kept for about a day. `src/pages/Privacy.tsx` has not
-   been updated.
-3. **Real SMTP** (an existing known gap): device approval needs a website account, and Supabase's
+2. **Real SMTP** (an existing known gap): device approval needs a website account, and Supabase's
    built-in mail is rate-limited.
-4. **Tell the Moonshine developer the API is live**, and pass on this document and the open questions
+3. **Tell the Moonshine developer the API is live**, and pass on this document and the open questions
    in §13.

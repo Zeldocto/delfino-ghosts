@@ -3,7 +3,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 /** Where privacy questions and requests go. */
 const CONTACT_EMAIL = 'smsilmod@gmail.com'
-const EFFECTIVE_DATE = '7 October 2026'
+const EFFECTIVE_DATE = '24 October 2026'
 
 /**
  * Keep this page in step with the code. If you add a third party, a new table,
@@ -30,7 +30,8 @@ export function Privacy() {
           personal information from you beyond what our hosting providers log automatically. An
           account needs an email address and a password. Anything you put on your profile or upload
           is public. There are no ads, no analytics, no tracking cookies, and we never sell your
-          information.
+          information. If you link a Wii or Dolphin running Moonshine so it can upload for you, we
+          also keep the device&apos;s name and when it was last used, until you unlink it.
         </p>
 
         <h2>1. Information we collect</h2>
@@ -68,9 +69,10 @@ export function Privacy() {
           <strong>Ghosts you upload.</strong> The <code>.smsghost</code> file itself, exactly as
           uploaded, plus its original file name, size, title, description, level, time, tags, TAS
           flag, Moonshine version and upload date. A ghost file holds the recorded run data and labels
-          Moonshine writes into it, such as the level, time, category and game disc id. All of this
-          is public and downloadable by anyone. Do not put personal information in titles,
-          descriptions, tags or file names.
+          Moonshine writes into it, such as the level, time, category, game disc id and the author
+          name entered in Moonshine. All of this is public and downloadable by anyone, on the site
+          and through the Moonshine game (section 3). Do not put personal information in titles,
+          descriptions, tags, file names or the author name in Moonshine.
         </p>
         <p>
           <strong>Download records.</strong> When a signed-in user downloads someone else&apos;s
@@ -79,9 +81,45 @@ export function Privacy() {
           public; only you can read your own. The resulting download totals are public.
         </p>
         <p>
-          <strong>Ghost files are checked in your browser.</strong> When you choose a file to upload,
-          its header is read on your own device to check it is intact and to pre-fill the form. Nothing
-          is sent anywhere until you press upload.
+          <strong>How ghost files are checked.</strong> When you choose a file to upload, its header
+          is read on your own device to check it is intact and to pre-fill the form. Nothing is sent
+          anywhere until you press upload. After a ghost is uploaded, our server reads the stored
+          file and checks it against Moonshine&apos;s format rules. It records the result together
+          with details read from the file (such as its format version, route, recorded times and
+          checksums). Those details are public, like the ghost itself. This check is about the file
+          format only; it is not an anti-cheat check.
+        </p>
+        <p>
+          <strong>Linked devices (Moonshine).</strong> You can link a Wii or a Dolphin setup running
+          Moonshine to your account so it can upload ghosts for you. You approve it on the{' '}
+          <Link to="/link">Link a device</Link> page by entering a short code; you never type your
+          password on the device. For each linked device we store:
+        </p>
+        <ul>
+          <li>the name and version the device reports, such as &ldquo;Moonshine Wii 0.9.0&rdquo;;</li>
+          <li>when it was linked and when it was last used, updated at most every few minutes;</li>
+          <li>
+            scrambled forms (one-way hashes) of the sign-in tokens the device holds. We never store
+            the tokens themselves. The tokens work only for uploading ghosts, not for anything else
+            on your account.
+          </li>
+        </ul>
+        <p>
+          The tokens themselves are kept on the device, outside our control. Unlinking the device
+          makes them useless.
+        </p>
+        <p>
+          <strong>Uploads from a linked device.</strong> While a device is uploading a ghost, we keep a
+          record of the upload: the file&apos;s size and fingerprint (SHA-256), any file name, title
+          and description the device sent, and whether the file passed the format check. Until the
+          upload is published, the file is held in private storage that nobody else can read. A
+          published ghost then appears on your profile like any other upload.
+        </p>
+        <p>
+          <strong>Abuse limits.</strong> To stop the sign-in and upload features from being flooded,
+          we count requests in short time windows. A count is keyed either by your account or by a
+          scrambled (salted one-way hash) form of the requesting IP address. The IP address itself is
+          never stored.
         </p>
 
         <h2>2. Cookies and browser storage</h2>
@@ -112,11 +150,13 @@ export function Privacy() {
         <ul>
           <li>
             <strong>Supabase, Inc.</strong> (United States) provides our database, file storage
-            and sign-in system, and sends our account verification and password reset emails. All
-            account, profile, ghost and download data is stored with Supabase on Amazon Web Services
-            in the <code>us-east-1</code> region (Northern Virginia, USA). Supabase receives the IP
-            address and user agent of every request your browser makes to it, including from guests
-            browsing or downloading, and keeps these in its service logs for a limited time. See{' '}
+            and sign-in system, and runs the small server program the Moonshine game talks to. It
+            also sends our account verification and password reset emails. All account, profile,
+            ghost, download and linked-device data is stored with Supabase on Amazon Web Services in
+            the <code>us-east-1</code> region (Northern Virginia, USA). Supabase receives the IP
+            address and user agent of every request made to it, whether from your browser (including
+            guests browsing or downloading) or from a Wii or PC running Moonshine. It keeps these in
+            its service logs for a limited time. See{' '}
             <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">
               Supabase&apos;s privacy policy
             </a>
@@ -146,6 +186,12 @@ export function Privacy() {
             on the site and can be viewed, downloaded and copied by anyone.
           </li>
           <li>
+            <strong>Moonshine players.</strong> Moonshine, the practice mod, can browse and download
+            ghosts from the archive in-game, without an account. It sees the same public ghost
+            information as the website, including your username as the uploader. Moonshine is a
+            separate project; it receives nothing that is not already public here.
+          </li>
+          <li>
             <strong>When the law requires it.</strong> We may disclose information if we are legally
             required to, or where it is necessary to protect the site or its users from abuse.
           </li>
@@ -159,13 +205,13 @@ export function Privacy() {
         <ul>
           <li>
             <strong>To provide the service you signed up for</strong>: running your account, publishing
-            your profile and ghosts, and sending account emails. For visitors in the EU, EEA or UK,
-            the legal basis is performance of a contract.
+            your profile and ghosts, letting devices you link upload for you, and sending account
+            emails. For visitors in the EU, EEA or UK, the legal basis is performance of a contract.
           </li>
           <li>
             <strong>To keep the archive secure and its numbers fair</strong>: sign-in logs, the
-            download records above and service logs. The legal basis is our legitimate interest in
-            protecting the site and preventing abuse.
+            download records above, the abuse limits and service logs. The legal basis is our
+            legitimate interest in protecting the site and preventing abuse.
           </li>
           <li>
             <strong>To keep the archive complete after an account is deleted</strong>, as described
@@ -182,6 +228,17 @@ export function Privacy() {
           <li>Download records: until the account that made them is deleted.</li>
           <li>Sign-in history and sessions: until you delete your account.</li>
           <li>
+            Linked devices: until you unlink the device (in{' '}
+            <Link to="/settings">Profile settings</Link> or from the device) or delete your account.
+            An unlinked device&apos;s record is deleted 30 days after unlinking.
+          </li>
+          <li>
+            Upload records from linked devices: deleted 30 days after the upload is published,
+            cancelled, rejected or abandoned. Abandoned uploads end after 24 hours. A file held in
+            private storage is deleted when its upload ends. The published ghost stays, as above.
+          </li>
+          <li>Abuse-limit counts: deleted once they are more than a day old.</li>
+          <li>
             Service logs held by Supabase and GitHub: for the limited periods set by those providers.
           </li>
         </ul>
@@ -194,9 +251,10 @@ export function Privacy() {
         </p>
         <p>
           <strong>What is deleted:</strong> your email address, password hash, sign-in sessions, your
-          sign-in history and the IP addresses recorded with it, and the record of every download you
-          made. Your display name, avatar link and bio are cleared,
-          and you are signed out.
+          sign-in history and the IP addresses recorded with it, the record of every download you
+          made, and the records of your linked devices. Those devices stop working at once.
+          Unfinished uploads from those devices are cancelled, and their files are deleted. Your
+          display name, avatar link and bio are cleared, and you are signed out.
         </p>
         <p>
           <strong>What becomes anonymous:</strong> your profile is renamed to an anonymous name such

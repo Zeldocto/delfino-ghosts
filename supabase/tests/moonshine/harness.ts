@@ -25,6 +25,7 @@ export const MIGRATIONS = [
   'migrations/0010_ghost_size_10mb.sql',
   'migrations/0011_tas_filter.sql',
   'migrations/0012_moonshine_api.sql',
+  'migrations/0013_moonshine_retention.sql',
 ]
 
 // Grants Supabase gives its roles that the plain stubs do not.

@@ -592,3 +592,46 @@ test('validated objects are immutable; changing a ghost file clears its validati
   await asUser(app, ALICE, `delete from public.ghosts where id = $1`, [other.id])
   assert.equal(((await app.admin(`select count(*)::int as n from public.ghost_moonshine_index`)).rows[0] as { n: number }).n, 0)
 })
+
+// --- retention (0013) -----------------------------------------------------------------
+
+test('device and upload records have an end date; account deletion removes device records', async () => {
+  const app = await setup()
+  const count = async (table: string) =>
+    ((await app.admin(`select count(*)::int as n from public.${table}`)).rows[0] as { n: number }).n
+
+  // Unlinked devices are forgotten 30 days after unlinking.
+  const old = await app.linkDevice(ALICE, 'old device')
+  await app.request('POST', '/v1/device/revoke', { body: { token: old.refresh_token } })
+  const kept = await app.linkDevice(ALICE, 'current device')
+  const { access_token: token } = kept
+
+  // A published and a cancelled session, both finished long ago.
+  const published = await uploadViaApi(app, token, buildGhost({ version: 9, ghostId: [70, 1] }))
+  assert.equal(published.published?.status, 201)
+  const bytes = buildGhost({ version: 9, ghostId: [70, 2] })
+  const open = await app.request('POST', '/v1/uploads', { token, body: { byte_length: bytes.length, sha256: await sha256Hex(bytes) } })
+  await app.request('DELETE', `/v1/uploads/${open.body.upload.upload_id}`, { token })
+  await app.request('POST', '/v1/uploads', { token, body: { byte_length: 1, sha256: 'b'.repeat(64) } }) // sweeps staging
+  assert.equal(await count('moonshine_uploads'), 3)
+
+  await app.admin(`update public.moonshine_device_links set revoked_at = now() - interval '31 days' where status = 'revoked'`)
+  await app.admin(`update public.moonshine_uploads set updated_at = now() - interval '31 days' where status in ('published', 'cancelled')`)
+  await app.admin(`insert into public.moonshine_rate_limits values ('x', 'y', now() - interval '2 days', 1)`)
+  await app.request('POST', '/v1/uploads', { token, body: { byte_length: 1, sha256: 'b'.repeat(64) } })
+
+  assert.deepEqual(
+    (await app.admin(`select client_name, status from public.moonshine_device_links order by client_name`)).rows,
+    [{ client_name: 'current device', status: 'active' }],
+  )
+  assert.equal(await count('moonshine_uploads'), 1, 'only the still-open session remains')
+  assert.equal(((await app.admin(`select count(*)::int as n from public.moonshine_rate_limits where bucket = 'x'`)).rows[0] as { n: number }).n, 0)
+  // The published ghost itself is untouched.
+  assert.equal((await app.request('GET', `/v1/ghosts/${published.published!.body.ghost.id}`)).status, 200)
+
+  // Deleting the account deletes its device records outright and ends open sessions.
+  await callAs(app.db, 'authenticated', ALICE, 'delete_own_account', {})
+  assert.equal(await count('moonshine_device_links'), 0)
+  assert.equal((await app.request('GET', '/v1/me', { token })).status, 401)
+  assert.deepEqual((await app.admin(`select status from public.moonshine_uploads`)).rows, [{ status: 'cancelled' }])
+})
