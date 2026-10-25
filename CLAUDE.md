@@ -127,6 +127,7 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0010 ghost size limit 10 MiB · 0011 TAS filter
                       0012 Moonshine API (validation index, device links, uploads)
                       0013 retention limits for device and upload records
+                      0014 Moonshine catalogue sort=route, filter-bound cursors
 supabase/functions/   moonshine-api/ (Edge Function) · _shared/ghost_format.ts (validator)
 supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ (node tests, PGlite)
 ```

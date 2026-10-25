@@ -186,6 +186,61 @@ test('pagination is stable, filtered and rejects bad parameters', async () => {
   }
 })
 
+test('sort=route groups by starting route; cursors are bound to their filters', async () => {
+  const app = await setup()
+  // [area, episode] in upload order. Same-route ghosts must come back newest first.
+  const routes = [[0x07, 1], [0x02, 3], [0x02, 1], [0x07, 1], [0x02, 1], [0x02, 2], [0x02, 1]]
+  const ids: string[] = []
+  for (const [i, [area, episode]] of routes.entries()) {
+    const g = await websiteUpload(app, ALICE, buildGhost({ version: 9, ghostId: [20, i], area, episode, region: i % 3 }))
+    await app.request('POST', `/v1/ghosts/${g.id}/index`)
+    ids.push(g.id)
+  }
+
+  const all = await app.request('GET', '/v1/ghosts?sort=route&limit=50')
+  assert.equal(all.status, 200)
+  assert.equal(all.body.sort, 'route')
+  assert.ok(/^app;dur=\d+(\.\d)?$/.test(all.headers.get('server-timing') ?? ''), all.headers.get('server-timing') ?? 'no header')
+  const expected = [ids[6], ids[4], ids[2], ids[5], ids[1], ids[3], ids[0]]
+  assert.deepEqual(all.body.items.map((e: { id: string }) => e.id), expected)
+  assert.deepEqual(all.body.items.map((e: { route: { key: string } }) => e.route.key),
+    ['02.1.ff.00.-1', '02.1.ff.00.-1', '02.1.ff.00.-1', '02.2.ff.00.-1', '02.3.ff.00.-1', '07.1.ff.00.-1', '07.1.ff.00.-1'])
+
+  // Paging across route boundaries returns the same sequence, nothing skipped or repeated.
+  const seen: string[] = []
+  let cursor: string | null = null
+  do {
+    const res = await app.request('GET', `/v1/ghosts?sort=route&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+    assert.equal(res.status, 200, JSON.stringify(res.body))
+    seen.push(...res.body.items.map((e: { id: string }) => e.id))
+    cursor = res.body.next_cursor
+  } while (cursor)
+  assert.deepEqual(seen, expected)
+
+  // Level filters combine with playable_on, sort and cursors.
+  const filter = 'area=2&episode=1&playable_on=pal&sort=route&limit=1'
+  const first = await app.request('GET', `/v1/ghosts?${filter}`)
+  assert.equal(first.body.total, 3)
+  const second = await app.request('GET', `/v1/ghosts?${filter}&cursor=${encodeURIComponent(first.body.next_cursor)}`)
+  assert.equal(second.status, 200)
+  assert.deepEqual([first.body.items[0].id, second.body.items[0].id], [ids[6], ids[4]])
+
+  // A cursor only works with the filters and sort it was issued for; page size may change.
+  const c = encodeURIComponent(first.body.next_cursor)
+  assert.equal((await app.request('GET', `/v1/ghosts?area=2&episode=1&playable_on=pal&sort=route&limit=5&cursor=${c}`)).status, 200)
+  for (const changed of ['area=2&episode=2&playable_on=pal&sort=route', 'area=2&episode=1&sort=route', 'area=2&episode=1&playable_on=pal']) {
+    const res = await app.request('GET', `/v1/ghosts?${changed}&cursor=${c}`)
+    assert.deepEqual([res.status, res.body.error?.code, res.body.error?.parameter], [400, 'invalid_parameter', 'cursor'], changed)
+  }
+
+  // Cursors issued before 0014 (no filter hash) keep working for the original sorts.
+  const newest = await app.request('GET', '/v1/ghosts?limit=3')
+  const legacy = newest.body.next_cursor.split('~').slice(0, 3).join('~')
+  const next = await app.request('GET', `/v1/ghosts?limit=3&cursor=${encodeURIComponent(legacy)}`)
+  assert.equal(next.status, 200)
+  assert.equal(next.body.items[0].id, ids[3])
+})
+
 // --- device linking ---------------------------------------------------------------
 
 test('device linking: pending, slow_down, approval, single-use code', async () => {

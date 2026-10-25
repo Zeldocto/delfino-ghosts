@@ -396,7 +396,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         integrity: 'compare file.sha256 and file.byte_length after download',
       },
       catalogue: {
-        sorts: ['newest', 'oldest', 'result_qf'],
+        sorts: ['newest', 'oldest', 'result_qf', 'route'],
         filters: ['route_key', 'area', 'episode', 'region', 'playable_on', 'source_profile', 'assistance', 'format_version', 'author', 'sha256'],
         assistance_values: ['tas', 'assisted', 'unknown'],
         compatible_only: true,
@@ -430,15 +430,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       p_format_version: int('format_version', 0, 65535),
       p_author: str('author', /^[A-Za-z0-9_-]{1,24}$/),
       p_sha256: str('sha256', /^[0-9a-fA-F]{64}$/),
-      p_sort: str('sort', /^(newest|oldest|result_qf)$/) ?? 'newest',
-      p_cursor: str('cursor', /^[nor]~-?\d{1,20}~[0-9a-f-]{36}$/),
+      p_sort: str('sort', /^(newest|oldest|result_qf|route)$/) ?? 'newest',
+      // Opaque to clients. Shape: sort letter ~ sort key(s) ~ last id [~ filter hash] (0014).
+      p_cursor: str('cursor', /^[nora]~-?\d{1,20}(?:\.-?\d{1,20}){0,5}~[0-9a-f-]{36}(?:~[0-9a-f]{8})?$/),
       p_limit: int('limit', 1, 50),
     }
     let page: Record<string, unknown>
     try {
       page = (await db.rpc('moonshine_list_ghosts', args)) as Record<string, unknown>
     } catch (err) {
-      if (err instanceof DbError && err.code === '22023') fail('invalid_parameter', {}, err.message)
+      if (err instanceof DbError && err.code === '22023') {
+        const parameter = /^invalid_parameter: (\w+)$/.exec(err.message)?.[1]
+        fail('invalid_parameter', parameter ? { parameter } : {}, err.message)
+      }
       throw err
     }
     const items = (page.items as Record<string, unknown>[]).map(decorateEntry)
@@ -890,12 +894,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   }
 
   return async (req: Request): Promise<Response> => {
+    const started = performance.now()
+    let res: Response
     try {
-      return await route(req)
+      res = await route(req)
     } catch (err) {
-      if (err instanceof HttpError) return err.response
-      log('unhandled error', err)
-      return error('internal')
+      if (err instanceof HttpError) res = err.response
+      else {
+        log('unhandled error', err)
+        res = error('internal')
+      }
     }
+    // Time spent inside this function only, so a client can tell server time from network time.
+    res.headers.set('Server-Timing', `app;dur=${(performance.now() - started).toFixed(1)}`)
+    return res
   }
 }

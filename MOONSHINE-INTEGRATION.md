@@ -30,7 +30,8 @@ Contents: [1 Status](#1-status-what-is-deployed) · [2 URLs and keys](#2-urls-an
 | Private `ghost-uploads` staging bucket | **Live**: not public, 1,297,992-byte limit, `application/octet-stream` only | Bucket row read on the live DB |
 | Validation of existing ghosts (backfill) | **Done**: 121 of 121 compatible. Every listed SHA-256 matches the bytes downloaded before deploy | Live catalogue compared with the corpus |
 | Live end-to-end check | **Passed**, on a real account | See below |
-| Tests | **Passing**: 19 tests, plus 3,121-input validator parity with `validate_ghost.py` | §12.5 |
+| Migration 0014 + function update (`sort=route`, filter-bound cursors, `Server-Timing`) | **Live** 2026-10-25 (function version 3 + migration 0014) | 20 local tests pass; live checks of route order, paging, filter-bound and legacy cursors, connection reuse |
+| Tests | **Passing**: 20 tests, plus 3,121-input validator parity with `validate_ghost.py` | §12.5 |
 
 The live end-to-end check covered the following steps:
 1. Linked a device by approving its code at `/link`, and confirmed `/v1/me` showed the right account.
@@ -123,6 +124,24 @@ Every step is safe to repeat. A retry never creates a second ghost (§5.6).
   (`ghost_id`, `parameter`, `expected_sha256`, …).
 - **Retry policy we recommend:** for `retryable` errors or network failures, exponential backoff from
   2 s up to 5 min with jitter, honouring `Retry-After`. Never retry a non-retryable error unchanged.
+- **Errors that don't come from us.** Our handler wraps every error it produces in the envelope,
+  including `500 internal` and `503 storage_unavailable`. Supabase's gateway, its function runtime
+  (for example a boot failure, a resource limit or a timeout) and Cloudflare can also answer 5xx or
+  429 before our code runs. Those bodies are theirs (Supabase JSON or Cloudflare HTML), not our
+  envelope. Treat any 5xx, or a 429 without our envelope, as transient: back off and retry, and honour
+  `Retry-After` if present. Storage downloads never use our envelope (§5.4).
+- **Request IDs.** Every response, from the API and from Storage downloads, carries
+  `sb-request-id` (a UUID set by Supabase's gateway). This is the ID to capture when reporting a
+  problem; together with `Date` and the URL path it finds the request in the project's logs. API
+  responses also carry `x-deno-execution-id`, and every response has Cloudflare's `CF-Ray`.
+  `Server-Timing: app;dur=<ms>` (since the 0014 deploy) is the time spent inside our function, so
+  the rest of the total is network, TLS and platform overhead.
+- **Persistent connections.** The public endpoint keeps HTTP/1.1 connections open (`Connection:
+  keep-alive`). Catalogue pages, cursor pages and Storage downloads can share one TLS connection.
+  Responses from the API use `Transfer-Encoding: chunked`; Storage downloads use `Content-Length`.
+  An idle connection was closed cleanly by the edge after 400 s (measured 2026-10-25; home routers
+  may drop one sooner). Always be ready for an idle connection to be gone: on a send or read failure on a reused
+  connection *before any response byte arrives*, reconnect once and resend the GET.
 
 ---
 
@@ -185,7 +204,7 @@ curl -s "$BASE/v1/capabilities"
     "integrity": "compare file.sha256 and file.byte_length after download"
   },
   "catalogue": {
-    "sorts": ["newest", "oldest", "result_qf"],
+    "sorts": ["newest", "oldest", "result_qf", "route"],
     "filters": ["route_key", "area", "episode", "region", "playable_on", "source_profile", "assistance", "format_version", "author", "sha256"],
     "assistance_values": ["tas", "assisted", "unknown"],
     "compatible_only": true
@@ -211,13 +230,34 @@ Only ghosts whose **stored bytes** passed server-side validation and the size li
 | `format_version` | SGHF version 3–9 |
 | `author` | Website username (case-insensitive) |
 | `sha256` | Exact bytes lookup ("is this file already on the site?") |
-| `sort` | `newest` (default), `oldest`, `result_qf` (ascending; ghosts without a result last) |
+| `sort` | `newest` (default), `oldest`, `result_qf` (ascending; ghosts without a result last), `route` (below) |
 | `limit` | 1–50, default 20 |
-| `cursor` | Opaque; pass back `next_cursor` from the previous page. Must be used with the same `sort` |
+| `cursor` | Opaque; pass back `next_cursor` from the previous page, with the **same filters and sort** |
 
 Pagination is keyset-based: every sort is a total order on `(sort key, id)`, so ghosts added or
 removed while you browse never duplicate or skip entries on later pages. `next_cursor` is `null` on
 the last page. `total` is the exact count of matches for the filters.
+
+**Browsing by level.** `area` and `episode` match the header route, which is segment 0's route, so
+they mean "starts in this scene". They combine freely with `playable_on`, the other filters, `sort`
+and `cursor`. `sort=route` (migration 0014) orders by the starting-route tuple
+`(area, episode, parent_area, flags, variant)`, all ascending, then newest first within a route,
+then `id`. Consecutive items with the same `route.key` belong to the same starting route. This
+groups ghosts by where they start. It is not a ranking, and two ghosts with the same starting route
+don't necessarily have the same IL objective. Titles and `site.level` are never used for ordering.
+
+**Cursor rules.**
+- A cursor belongs to the filters and sort it was issued for. If you change any filter or the sort,
+  drop the cursor and start from page 1. A cursor sent with different filters or a different sort is
+  refused with `400 invalid_parameter` (`parameter: cursor` in the message). Changing `limit`
+  between pages is allowed. Cursors issued before 0014 had no filter binding; they're still accepted
+  for `newest`, `oldest` and `result_qf`.
+- A cursor doesn't expire.
+- Inserts and deletes while paging: a ghost that's deleted (or whose file is replaced and not yet
+  revalidated) disappears from later pages. A ghost added after you start appears on a later page
+  only if it sorts after your position. With `sort=newest` it doesn't appear, because new ghosts sort
+  first. Nothing already returned is repeated, and nothing that existed throughout is skipped.
+  `total` is recomputed on each page, so it can change.
 
 ```sh
 curl -s "$BASE/v1/ghosts?route_key=02.2.ff.00.-1&sort=newest&limit=1"
@@ -275,8 +315,14 @@ curl -s "$BASE/v1/ghosts?route_key=02.2.ff.00.-1&sort=newest&limit=1"
   "sort": "newest"
 }
 ```
-A non-final page has `"next_cursor": "n~-1792876507955000~b852e301-…"`; send it back verbatim as
-`&cursor=…`. Bad filters give `400 invalid_parameter` with `"parameter": "region"` (for example).
+A non-final page has `"next_cursor": "n~-1792876507955000~b852e301-…~3f1c9a07"`; percent-encode it
+and send it back as `&cursor=…`. Treat it as an opaque string up to 200 characters. Bad filters give
+`400 invalid_parameter` with `"parameter": "region"` (for example).
+
+```sh
+curl -s "$BASE/v1/ghosts?area=2&episode=1&playable_on=jp&sort=route&limit=4"
+# next_cursor looks like "a~2.1.255.0.-1.-1792513648148465~ec2cfb35-…~5d0e2b11"
+```
 
 ### 5.3 `GET /v1/ghosts/{id}` and `GET /v1/ghosts/{id}/file`
 
@@ -546,7 +592,8 @@ compatibility.
 It validates the ghost's *stored* bytes and records the result. The website calls it after every
 browser upload or file replacement, and the backfill script calls it once per existing ghost. It is
 public but cannot be abused to change anything: it reads the bytes itself, and is a no-op for an
-already-validated ghost (`?force=1` re-validates). It is rate-limited to 300 per hour per IP.
+already-validated ghost (`?force=1` re-validates). It is rate-limited to 300 per hour per IP. This is
+the only endpoint the "index calls" limit in §9 refers to; it doesn't apply to the catalogue.
 Moonshine doesn't need it.
 
 ### 5.9 Optional: direct PostgREST access
@@ -743,7 +790,13 @@ it as one.
 | Upload creates per account | 30 per hour |
 | Content attempts per session | 10 |
 | Ghosts per account (archive rule) | 200 |
-| Index calls | 300 per IP per hour |
+| Index calls (`POST /v1/ghosts/{id}/index` only, the website's validation trigger) | 300 per IP per hour |
+| Catalogue (`GET /v1/ghosts`, `/v1/ghosts/{id}`, `/file`, `/v1/capabilities`) | No limit of ours |
+| Ghost downloads (Storage `GET`) | No limit of ours |
+
+The anonymous browse/download path has no application rate limit. Supabase and Cloudflare apply
+their own platform protections, which we don't control or see (§4, errors that don't come from us).
+Please still pace requests sensibly: one page at a time, driven by the player.
 
 IPs are never stored. Rate-limit keys are salted SHA-256 hashes, kept for about a day.
 
@@ -990,7 +1043,7 @@ paths:
         - {name: format_version, in: query, schema: {type: integer}}
         - {name: author, in: query, schema: {type: string}}
         - {name: sha256, in: query, schema: {type: string}}
-        - {name: sort, in: query, schema: {type: string, enum: [newest, oldest, result_qf], default: newest}}
+        - {name: sort, in: query, schema: {type: string, enum: [newest, oldest, result_qf, route], default: newest}}
         - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
         - {name: cursor, in: query, schema: {type: string}}
       responses:
@@ -1171,6 +1224,7 @@ paths:
 | --- | --- |
 | `supabase/migrations/0012_moonshine_api.sql` | Everything in the database (below). One file; safe on the live DB; changes no existing rows |
 | `supabase/migrations/0013_moonshine_retention.sql` | Retention limits: device records are deleted with the account and 30 days after unlinking; finished upload sessions are deleted 30 days after they end |
+| `supabase/migrations/0014_moonshine_route_sort.sql` | Catalogue `sort=route` and filter-bound cursors (§5.2). Same function signature and result shape; `catalogue_schema` stays 1 |
 | `supabase/functions/moonshine-api/app.ts` | HTTP API (routing, auth, uploads, catalogue). Runtime-agnostic |
 | `supabase/functions/moonshine-api/index.ts` | Deno entry: wires Supabase RPC and Storage with the service-role key, which stays server-side |
 | `supabase/functions/_shared/ghost_format.ts` | Strict TypeScript port of `validate_ghost.py` plus the 1,297,992-byte ceiling |
