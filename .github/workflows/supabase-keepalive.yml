@@ -1,0 +1,43 @@
+# Keeps the Delfino Ghosts Supabase project from auto-pausing.
+# Free-tier projects pause after ~7 days without database activity,
+# so this reads one ghost row every 3 days.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '43 15 */3 * *'   # every 3 days, 15:43 UTC
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+permissions:
+  actions: write              # needed to re-enable this workflow (see last step)
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query the ghosts table
+        env:
+          # Same repository variables the Pages build (main.yml) already uses
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set for this repo"; exit 1
+          fi
+          status=$(curl -s -o response.txt -w '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_KEY" \
+            "${SUPABASE_URL%/}/rest/v1/ghosts?select=id&limit=1")
+          echo "HTTP $status"
+          cat response.txt; echo
+          # Fail the run (GitHub emails you) if the project is paused or erroring
+          if [ "$status" != "200" ]; then exit 1; fi
+
+      - name: Re-enable this workflow so GitHub's 60-day timer resets
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PUT \
+            "repos/${{ github.repository }}/actions/workflows/supabase-keepalive.yml/enable"
+          echo "Workflow re-enabled; inactivity timer reset."
