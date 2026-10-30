@@ -20,8 +20,11 @@ said explicitly this should not become a social network. Resist adding comments,
 follows or a CMS. Community and profile pages exist to support the archive, not to compete with it.
 
 - **Frontend:** React 18 + TypeScript + Vite, static, hosted on GitHub Pages
-- **Backend:** Supabase (Auth, Postgres, Storage), plus one Edge Function, `moonshine-api`, which
-  serves the Moonshine game client (see MOONSHINE-INTEGRATION.md). No other server of our own
+- **Backend:** Supabase (Auth, Postgres, two Edge Functions) plus an S3-compatible bucket
+  (Cloudflare R2) that holds the ghost files. `ghost-storage` is the website's only write path to
+  that bucket; `moonshine-api` serves the Moonshine game client (see MOONSHINE-INTEGRATION.md).
+  Supabase Storage is left only for the private Moonshine staging bucket `ghost-uploads`. No other
+  server of our own
 - **Live:** `https://<user>.github.io/delfino-ghosts/`
 
 ## Design language
@@ -58,7 +61,8 @@ If you find yourself writing a rule in React, ask whether it belongs in a trigge
 4. **The 200-ghost limit is a trigger**, taken under `pg_advisory_xact_lock` so concurrent inserts
    cannot both pass at 199.
 5. **`file_path` must start with the owner's uuid** and contain no `..`. There is a CHECK constraint
-   plus a matching Storage policy.
+   plus the matching key check in the `ghost-storage` Edge Function, which builds every upload key
+   from the caller's verified JWT (the bucket itself has no idea who anyone is).
 6. **Level and time** live on `ghosts.level` (free text) and `ghosts.time_ms` (integer
    milliseconds). Both nullable — pre-existing ghosts have neither, and Browse renders a blank cell
    rather than hiding them. Never store a formatted time string; format at the edge with
@@ -98,10 +102,19 @@ Unrecognised versions still upload to the archive with a warning and are stored 
 byte-for-byte; they are simply never offered to Moonshine. Never rewrite a ghost's bytes; download
 must return exactly what was uploaded.
 
-**Validated files are immutable in Storage.** Once `ghost_moonshine_index` has a verdict for an
-object, the owner update/delete policies refuse it (0012). Replacing a ghost's file therefore means
-uploading a *new* object and pointing `ghosts.file_path` at it (`updateGhost()` does this); the
-trigger then drops the stale verdict and the website asks the function to validate the new bytes.
+**Validated files are immutable.** Presigned uploads sign `If-None-Match: *` and `ghost-storage`
+refuses to presign a key that exists, so nothing is ever overwritten in place; its `delete` action
+refuses a key that has a `ghost_moonshine_index` verdict or that a `ghosts` row still points at.
+Replacing a ghost's file therefore means uploading a *new* object and pointing `ghosts.file_path` at
+it (`updateGhost()` does this); the trigger then drops the stale verdict and the website asks the
+function to validate the new bytes.
+
+**Size.** One limit everywhere: 100 MiB (`MAX_GHOST_BYTES` in `src/types/index.ts` and
+`_shared/ghost_paths.ts`, `MOONSHINE_MAX_FILE_BYTES`, `ghosts_file_size_range`, 0015). The
+validator still caps canonical SGHF files at 1,298,016 bytes (PR27), so anything bigger stays
+website-only as `invalid`. The new **MSTR** trace format (`.msgt`, Moonshine decoder pack r8
+documents v1/v2; captures in the wild are already v3) is **not supported** yet: the site accepts
+only `.smsghost`.
 
 ---
 
@@ -128,8 +141,12 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0012 Moonshine API (validation index, device links, uploads)
                       0013 retention limits for device and upload records
                       0014 Moonshine catalogue sort=route, filter-bound cursors
-supabase/functions/   moonshine-api/ (Edge Function) · _shared/ghost_format.ts (validator)
-supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ (node tests, PGlite)
+                      0015 one 100 MiB size limit (archive + Moonshine)
+supabase/functions/   moonshine-api/ · ghost-storage/ (presign + delete for the bucket)
+                      _shared/ghost_format.ts (validator) · _shared/s3.ts (S3 client, aws4fetch)
+                      _shared/ghost_paths.ts (key rules, safeFilename, MAX_GHOST_BYTES)
+supabase/scripts/     moonshine_backfill.mjs · migrate_to_r2.mjs (one-off Supabase -> R2 copy)
+supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ · storage/ (node, PGlite)
 ```
 
 Key components:
@@ -182,8 +199,21 @@ Key components:
   `deleted_at`, and drops that user's own `ghost_downloads` rows and `auth.audit_log_entries` (0009). Their ghosts stay. Owner-write
   policies also require `is_active_account()` so the leftover access token can do nothing.
   `anonymous` / `anonymous-<n>` usernames are reserved for these rows.
-- **Orphaned Storage objects** are possible if a delete removes the row but the Storage call fails.
-  Unreachable through the archive, but they consume quota. No sweeper exists yet.
+- **Orphaned bucket objects** are possible if a delete removes the row but the `ghost-storage`
+  call fails. Unreachable through the archive, but they consume quota. No sweeper exists yet.
+- **Account deletion does not touch ghost files.** Since 0008 ghosts outlive their author, so no
+  SQL needs to reach the bucket. If that ever changes, the deletion must go through an Edge
+  Function: Postgres cannot call R2.
+- **The bucket needs a CORS rule** for the Pages origin and localhost (README 2.5). Without it,
+  presigned PUTs and downloads fail in the browser with an opaque network error while the Edge
+  Function itself looks healthy.
+- **Presigned PUTs are strict.** The URL signs `content-length`, `content-type:
+  application/octet-stream` and `if-none-match: *`; the browser must send exactly those (the
+  function returns the headers to use) and the file must be the declared size. Presigning with
+  aws4fetch needs `allHeaders: true` and an explicit `X-Amz-Expires`, or it silently leaves the size
+  unsigned and the URL valid for 24 hours.
+- **`S3_*` secrets live only in Edge Function secrets.** `VITE_GHOSTS_PUBLIC_BASE_URL` is the only
+  bucket value the frontend gets, and it is public.
 
 ---
 
@@ -192,6 +222,7 @@ Key components:
 ```bash
 npm run build                # tsc -b then vite build; typecheck is real and strict
 npm run test:moonshine       # Moonshine API + validator tests (PGlite, no Postgres install needed)
+npm run test:storage         # ghost-storage function: key rules, presigning, delete guards
 npm run typecheck:moonshine  # Edge Function and test code
 ```
 
@@ -215,7 +246,7 @@ Always check the built asset paths after touching Vite config.
    `ghost_downloads` log exists so stricter rules can be added without a schema change.
 4. **Supabase's built-in mail is rate-limited** and meant for development. Real SMTP is needed before
    the archive opens to the community.
-5. **No Storage sweeper** for orphans (see above).
+5. **No bucket sweeper** for orphans (see above).
 6. **Bundle is ~460 KB** unsplit. Fine for now; route-level code splitting is the obvious lever.
 
 ---

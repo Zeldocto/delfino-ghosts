@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "typecheck:moonshine": "tsc -p supabase/tsconfig.json",
-    "test:moonshine": "node --test --experimental-strip-types --no-warnings \"supabase/tests/moonshine/*.test.ts\""
+    "test:moonshine": "node --test --experimental-strip-types --no-warnings \"supabase/tests/moonshine/*.test.ts\"",
+    "test:storage": "node --test --experimental-strip-types --no-warnings \"supabase/tests/storage/*.test.ts\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -23,6 +24,7 @@
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "aws4fetch": "1.0.20",
     "jsdom": "^30.0.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.8"

@@ -8,7 +8,7 @@
  * The database holds every rule that matters (who may do what, limits, state
  * transitions) in SQL functions from migration 0012. This file does the parts
  * Postgres cannot: generating secrets, reading request bodies, validating ghost
- * bytes, and moving objects in Storage.
+ * bytes, and moving objects from the staging bucket into the archive.
  */
 import {
   MOONSHINE_MAX_FILE_BYTES,
@@ -19,6 +19,10 @@ import {
   indexFields,
   type ValidatedGhost,
 } from '../_shared/ghost_format.ts'
+import { safeFilename } from '../_shared/ghost_paths.ts'
+import { publicObjectUrl } from '../_shared/s3.ts'
+
+export { safeFilename }
 
 export const API_VERSION = 1
 export const CATALOGUE_SCHEMA = 1
@@ -52,8 +56,8 @@ export interface ObjectStore {
 export interface Deps {
   db: Db
   storage: ObjectStore
-  /** e.g. https://cvadewafbthfhvzgdgay.supabase.co */
-  supabaseUrl: string
+  /** Public base of the archive bucket, e.g. https://ghosts.example.org (GHOSTS_PUBLIC_BASE_URL). */
+  archiveBaseUrl: string
   /** Public base of this function, e.g. https://<ref>.supabase.co/functions/v1/moonshine-api */
   apiBaseUrl: string
   /** The website, e.g. https://zeldocto.github.io/delfino-ghosts */
@@ -103,21 +107,9 @@ export function normalizeUserCode(code: string): string {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Same rules as the website's safeFilename() in src/lib/ghost/GhostStorage.ts. */
-export function safeFilename(name: string): string {
-  const base = name.split(/[\\/]/).pop() ?? 'ghost.smsghost'
-  const cleaned = base
-    .replace(/\.smsghost$/i, '')
-    .replace(/[^A-Za-z0-9._-]/g, '_')
-    .replace(/\.{2,}/g, '_')
-    .replace(/^[._-]+/, '')
-    .slice(0, 96)
-  return `${cleaned || 'ghost'}.smsghost`
-}
-
-/** Public, unsigned, non-expiring Storage URL for an archive object. */
-export function archiveUrl(supabaseUrl: string, path: string): string {
-  return `${supabaseUrl}/storage/v1/object/public/ghosts/${path.split('/').map(encodeURIComponent).join('/')}`
+/** Public, unsigned, non-expiring URL for an archive object in the S3-compatible bucket. */
+export function archiveUrl(archiveBaseUrl: string, path: string): string {
+  return publicObjectUrl(archiveBaseUrl, path)
 }
 
 /**
@@ -182,7 +174,7 @@ export const ERRORS: Record<string, ErrorSpec> = {
   token_expired:          { status: 401, retryable: true,  message: 'The access token expired. Use the refresh token, then retry.' },
   not_found:              { status: 404, retryable: false, message: 'Not found.' },
   route_not_found:        { status: 404, retryable: false, message: 'No such endpoint.' },
-  object_missing:         { status: 404, retryable: false, message: 'The archive row exists but its file is missing from Storage.' },
+  object_missing:         { status: 404, retryable: false, message: 'The archive row exists but its file is missing from the archive bucket.' },
   method_not_allowed:     { status: 405, retryable: false, message: 'Method not allowed on this endpoint.' },
   duplicate_content:      { status: 409, retryable: false, message: 'Another account has already published a ghost with these exact bytes.' },
   idempotency_key_reused: { status: 409, retryable: false, message: 'This Idempotency-Key was already used for different content.' },
@@ -321,7 +313,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const file = entry.file as Record<string, unknown>
     return {
       ...entry,
-      file: { ...file, download_url: archiveUrl(deps.supabaseUrl, file.path as string) },
+      file: { ...file, download_url: archiveUrl(deps.archiveBaseUrl, file.path as string) },
       page_url: `${deps.siteUrl}/ghost/${entry.id}`,
     }
   }

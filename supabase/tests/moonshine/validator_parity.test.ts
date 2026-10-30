@@ -183,5 +183,7 @@ test('classifyGhost separates corrupt, unsupported and oversized input', () => {
   const feature = finalize(Object.assign(new Uint8Array(good), { 27: 63 | 64 }))
   assert.equal(classifyGhost(feature).code, 'unsupported_feature')
 
-  assert.equal(classifyGhost(new Uint8Array(1_297_993)).status, 'too_large')
+  assert.equal(classifyGhost(new Uint8Array(104_857_601)).status, 'too_large')
+  // Under the limit but over the format's own canonical maximum: invalid, not too_large.
+  assert.equal(classifyGhost(new Uint8Array(1_298_017)).status, 'invalid')
 })

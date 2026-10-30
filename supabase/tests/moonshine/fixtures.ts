@@ -16,6 +16,8 @@ export interface FixtureOptions {
   /** Samples per segment. Two entries make a two-segment ghost with a gap. */
   segments?: number[]
   inputs?: number
+  /** QF between consecutive inputs (default 4). Smaller fits more inputs into a short timeline. */
+  inputStepQf?: number
   splits?: number
   cameraSamples?: number
   name?: string
@@ -171,7 +173,7 @@ export function buildGhost(options: FixtureOptions = {}): Uint8Array {
     put32(view, base + 12, splitCount)
     for (let i = 0; i < inputCount; i++) {
       const offset = base + 32 + i * inputStride
-      put32(view, offset, startQf + i * 4)
+      put32(view, offset, startQf + i * (options.inputStepQf ?? 4))
       view.setUint16(offset + 4, 0x0100) // A button
     }
     for (let i = 0; i < splitCount; i++) {

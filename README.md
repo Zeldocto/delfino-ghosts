@@ -9,7 +9,8 @@ Browse the archive, find a ghost, download it. An account is only needed to uplo
 your downloads counted.
 
 - **Frontend:** React + TypeScript + Vite, hosted on GitHub Pages
-- **Backend:** Supabase (Auth, PostgreSQL, Storage) — no custom server
+- **Backend:** Supabase (Auth, PostgreSQL, Edge Functions) plus a Cloudflare R2 bucket for the ghost
+  files — no server of our own
 - **Live at:** [zeldocto.github.io/delfino-ghosts](https://zeldocto.github.io/delfino-ghosts/)
 
 ---
@@ -36,7 +37,7 @@ Requires Node 20 or newer.
 git clone https://github.com/<your-username>/delfino-ghosts.git
 cd delfino-ghosts
 npm install
-cp .env.example .env      # then fill in the two values, see section 3
+cp .env.example .env      # then fill in the three values, see section 3
 npm run dev
 ```
 
@@ -107,15 +108,72 @@ password, and `auth.users` is not readable through the anon key.
 
 See [section 4](#4-database-setup).
 
-### 2.5 Storage
+### 2.5 Ghost file storage (Cloudflare R2)
 
-The Storage bucket is created by `supabase/migrations/0002_storage.sql`, so there is nothing to
-click. After running it, check **Storage** and confirm a bucket named `ghosts` exists, is marked
-public, and has a 10 MB file size limit (set by `0010_ghost_size_10mb.sql`).
+Ghost files live in an S3-compatible bucket, not in Supabase Storage. The code only speaks the plain
+S3 API, so Backblaze B2 or Tebi work too by changing the secrets below; these steps use Cloudflare R2.
 
-The bucket is public on purpose: guests must be able to download ghosts. Public means *readable* —
-writes are still governed by the policies in that same file, which only allow an authenticated user
-to write inside a folder named after their own user id.
+1. **Create the bucket.** In the Cloudflare dashboard, **R2 → Create bucket**, e.g. `delfino-ghosts`.
+2. **Make it publicly readable.** Guests must be able to download. Under the bucket's **Settings →
+   Public access**, connect a **custom domain** (recommended, e.g. `ghosts.example.org`). The
+   `r2.dev` development URL also works for testing, but Cloudflare rate-limits it and does not
+   recommend it for production. Public means *readable*: nobody can write without a signed URL.
+3. **Add the CORS rule** under **Settings → CORS policy**, so the website can upload with presigned
+   URLs and download with `fetch`. Origins are scheme + host only, no path:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://<your-username>.github.io", "http://localhost:5173", "http://localhost:4173"],
+       "AllowedMethods": ["GET", "HEAD", "PUT"],
+       "AllowedHeaders": ["content-type", "if-none-match"],
+       "ExposeHeaders": ["etag", "content-length"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+4. **Create an API token.** **R2 → Manage API tokens → Create API token**, permission *Object Read &
+   Write*, limited to this one bucket. Note the *Access Key ID*, *Secret Access Key* and the account's
+   S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`).
+5. **Set the Edge Function secrets** (Supabase dashboard → **Edge Functions → Secrets**, or
+   `supabase secrets set NAME=value`):
+
+   | Secret | Value |
+   | --- | --- |
+   | `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+   | `S3_BUCKET` | the bucket name |
+   | `S3_REGION` | `auto` for R2 |
+   | `S3_ACCESS_KEY_ID` | from step 4 |
+   | `S3_SECRET_ACCESS_KEY` | from step 4 |
+   | `GHOSTS_PUBLIC_BASE_URL` | the public base from step 2, e.g. `https://ghosts.example.org` (no trailing slash) |
+
+   These stay inside the functions. None of them may ever go in a `VITE_` variable.
+6. **Deploy the functions:**
+   ```bash
+   supabase functions deploy ghost-storage                  # JWT verification on (default)
+   supabase functions deploy moonshine-api --no-verify-jwt
+   ```
+
+`ghost-storage` is the website's only write path to the bucket. It enforces what the old Storage
+policies did; see [section 7](#7-security-what-is-enforced-and-where).
+
+The Supabase Storage bucket `ghosts` (from `0002_storage.sql`) is legacy: it held the files before
+the move to R2 and is kept, with its policies, until the copy has been verified. Moving existing
+files is a one-off:
+
+```bash
+# values from the steps above, plus the project URL and publishable key
+export SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... S3_ENDPOINT=... S3_BUCKET=...
+export S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=...
+node supabase/scripts/migrate_to_r2.mjs --dry-run   # report only
+node supabase/scripts/migrate_to_r2.mjs             # copy
+```
+
+It copies every object under the same key (so `ghosts.file_path` needs no change), checks size and
+sha256 after each copy, skips keys already copied, and never deletes anything from Supabase.
+
+The private bucket `ghost-uploads` (Moonshine API staging, from 0012) stays in Supabase Storage.
 
 ---
 
@@ -126,6 +184,7 @@ Create `.env` in the project root:
 ```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-or-publishable-key
+VITE_GHOSTS_PUBLIC_BASE_URL=https://ghosts.example.org
 ```
 
 **Which values are public, and why it matters.**
@@ -134,11 +193,13 @@ VITE_SUPABASE_ANON_KEY=your-anon-or-publishable-key
 | --- | --- | --- |
 | `VITE_SUPABASE_URL` | `.env`, GitHub repository variable | Public. It is just your project's address. |
 | `VITE_SUPABASE_ANON_KEY` | `.env`, GitHub repository variable | Public by design. It identifies the `anon` role; what it can actually do is decided entirely by Row Level Security. |
+| `VITE_GHOSTS_PUBLIC_BASE_URL` | `.env`, GitHub repository variable | Public. The read-only download address of the ghost bucket (section 2.5). |
+| `S3_*`, `GHOSTS_PUBLIC_BASE_URL` | Supabase Edge Function secrets only | The R2 access key and secret can write to the bucket. Never in `.env`, a `VITE_` variable or GitHub Actions. |
 | `service_role` key | Nowhere in this project | Bypasses RLS. Treat it like a database superuser password. |
 | Database password | Nowhere in this project | Only for direct psql/CLI access. |
 
 Anything prefixed `VITE_` is **inlined into the built JavaScript** and is readable by anyone who
-opens the site. That is fine for the two values above and unacceptable for anything else. `.env` is
+opens the site. That is fine for the three values above and unacceptable for anything else. `.env` is
 in `.gitignore`; `.env.example` is the committed template and contains no real values.
 
 ---
@@ -168,6 +229,7 @@ supabase db push
 | `supabase/migrations/0012_moonshine_api.sql` | Moonshine ghost-sharing API: server-side validation index, device linking, upload sessions, private `ghost-uploads` bucket. See [MOONSHINE-INTEGRATION.md](MOONSHINE-INTEGRATION.md) |
 | `supabase/migrations/0013_moonshine_retention.sql` | Deletes linked-device records with the account and 30 days after unlinking; deletes finished upload sessions after 30 days |
 | `supabase/migrations/0014_moonshine_route_sort.sql` | Moonshine catalogue: `sort=route` (browse by starting level) and cursors bound to their filters. Deploy the function **before** running this |
+| `supabase/migrations/0015_size_100mb.sql` | One 100 MiB size limit for the archive and the Moonshine API (table checks, `moonshine_config()`, staging bucket). Only raises limits; deploy both Edge Functions **before** running this |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.
@@ -197,6 +259,7 @@ needs no PostgreSQL install — it runs Postgres in-process with PGlite:
 ```bash
 npm run test:moonshine
 MOONSHINE_VALIDATOR=../scripts/validate_ghost.py npm run test:moonshine   # also compare with Moonshine's validator
+npm run test:storage      # the ghost-storage function: key rules, presigned uploads, delete guards
 ```
 
 The files are the authoritative SQL — they are commented throughout and are meant to be read before
@@ -222,8 +285,8 @@ they are run. What follows is an inventory so you know what should exist afterwa
 | `id` | uuid primary key |
 | `user_id` | Owner; set from `auth.uid()` by the insert trigger, immutable afterwards |
 | `title`, `description` | 1–100 and ≤2000 characters |
-| `file_path` | Storage key. A CHECK constraint requires it to start with `user_id/` and contain no `..` |
-| `original_filename`, `file_size` | Size capped at 10 MiB |
+| `file_path` | Object key in the ghost bucket. A CHECK constraint requires it to start with `user_id/` and contain no `..` |
+| `original_filename`, `file_size` | Size capped at 100 MiB (0015) |
 | `level` | Which level the ghost is for, e.g. `Bianco Hills 3`. Free text, trimmed on write, up to 48 chars |
 | `time_ms` | The run's time in whole milliseconds. Integer so it sorts and compares; formatted for display in the frontend |
 | `is_tas` | The TAS flag |
@@ -271,9 +334,11 @@ There is deliberately no insert or delete policy on `profiles`: rows arrive via 
 Since migration 0008 they are never deleted — when the login is deleted, the profile is anonymised
 to "Anonymous N" and its ghosts stay in the archive.
 
-### Storage policies
+### Storage policies (legacy bucket)
 
-On `storage.objects` for bucket `ghosts`:
+These applied while ghost files lived in Supabase Storage, and stay in place until the old bucket is
+removed. The same rules are now enforced for the R2 bucket by the `ghost-storage` Edge Function
+(section 7). On `storage.objects` for bucket `ghosts`:
 
 - **select:** everyone
 - **insert:** authenticated, only where the first path segment equals `auth.uid()`, the path is
@@ -299,11 +364,12 @@ On `storage.objects` for bucket `ghosts`:
    ```
 
 3. **Add the build configuration.** In **Settings → Secrets and variables → Actions → Variables**,
-   add two repository variables:
+   add three repository variables:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_GHOSTS_PUBLIC_BASE_URL`
 
-   Repository *variables* rather than *secrets* is the honest choice here: both values ship inside
+   Repository *variables* rather than *secrets* is the honest choice here: all three values ship inside
    the built JavaScript, so marking them secret would imply a protection that does not exist. The
    workflow accepts either, so if you prefer secrets it will still build.
 
@@ -334,8 +400,8 @@ open questions are in [MOONSHINE-INTEGRATION.md](MOONSHINE-INTEGRATION.md).
 
 ### Downloads and the counter
 
-Every visitor can download every ghost. The file is fetched from the public Storage URL and saved
-byte-for-byte; nothing rewrites the container.
+Every visitor can download every ghost. The file is fetched from the bucket's public URL
+(`VITE_GHOSTS_PUBLIC_BASE_URL`) and saved byte-for-byte; nothing rewrites the container.
 
 Counting is separate from delivery:
 
@@ -435,11 +501,19 @@ boundary. Here is what actually holds, and what does not.
   avatar URL scheme, tag count, and non-negative counters.
 - Path integrity. `file_path` must begin with the owner's uuid and may not contain `..`.
 
-**Enforced by Supabase Storage**
+**Enforced by the `ghost-storage` Edge Function** (the R2 bucket has no notion of users, so the
+rules Supabase Storage policies used to enforce now live in the function)
 
-- 10 MiB per object and an allowed MIME list, set on the bucket itself.
-- Write policies keyed to `auth.uid()`, requiring the `.smsghost` extension and the expected folder
-  depth — so no user can write into, overwrite or delete another user's folder.
+- Every upload goes through a presigned URL the function issues to a signed-in, non-deleted
+  account. The function builds the key itself as `<auth.uid()>/<ghost-id>/<name>.smsghost` from the
+  verified JWT, with exactly two folders, the `.smsghost` extension and the same `safeFilename` rules
+  as the website, so no user can write into another user's folder.
+- The URL signs the exact `Content-Length` (at most 100 MiB), `Content-Type:
+  application/octet-stream` and `If-None-Match: *`, and expires after 15 minutes, so it cannot be
+  reused for a different size or type, or to overwrite an existing object.
+- Deletes are only for keys under the caller's own uid, and are refused for a file that has been
+  validated for Moonshine or that a ghost row still points at.
+- The R2 access keys exist only in Edge Function secrets; the browser never holds a credential.
 
 **Enforced by Supabase Auth**
 
@@ -461,7 +535,8 @@ boundary. Here is what actually holds, and what does not.
 
 - **File contents are validated in the browser, not on the server.** Magic number, declared length
   and both CRC32s are checked before upload, but a determined uploader can call Storage directly and
-  put arbitrary bytes under their own folder within the size, extension and MIME limits. Ghosts are
+  put arbitrary bytes under their own folder within the size, extension and type limits by asking
+  `ghost-storage` for a presigned URL directly. Ghosts are
   served as `application/octet-stream` for download rather than executed or rendered, so the
   exposure is a junk file rather than code execution. Since migration 0012 the `moonshine-api` Edge
   Function validates every ghost's stored bytes on the server, and only files that pass are offered
@@ -470,7 +545,7 @@ boundary. Here is what actually holds, and what does not.
   count per ghost per hour, and could automate that across many accounts. Signup rate limits and the
   cooldown raise the cost; they do not eliminate it. The `ghost_downloads` log is there so tighter
   rules can be applied later.
-- **Storage objects can be orphaned.** If a delete removes the row but the Storage call then fails,
+- **Bucket objects can be orphaned.** If a delete removes the row but the `ghost-storage` call then fails,
   a file can be left behind. It is unreachable through the archive — nothing links to it — but it
   still occupies quota. A periodic sweep comparing bucket contents against `ghosts.file_path` would
   close this.
@@ -515,8 +590,10 @@ delfino-ghosts/
 │   ├── utils/                     Formatting and input validation
 │   └── styles.css                 Design tokens and all styling
 ├── supabase/
-│   ├── migrations/                0001_init.sql, 0002_storage.sql
-│   └── tests/                     local_stubs.sql, security_checks.sql
+│   ├── functions/                 ghost-storage/, moonshine-api/, _shared/
+│   ├── migrations/                0001_init.sql … 0015_size_100mb.sql
+│   ├── scripts/                   moonshine_backfill.mjs, migrate_to_r2.mjs
+│   └── tests/                     local_stubs.sql, security_checks.sql, moonshine/, storage/
 ├── .env.example
 └── vite.config.ts
 ```
@@ -553,8 +630,17 @@ page around it. `imgur.com/abc123.jpg` is a viewer page; `i.imgur.com/abc123.jpg
 settings form rewrites Imgur links automatically, warns about X, ImgBB and cloud-storage links, and
 previews the image so a broken link is visible before saving.
 
-**Uploads fail with a size or type error** — the Storage bucket enforces 10 MB and the `.smsghost`
-extension independently of the browser. Confirm `0002_storage.sql` ran.
+**Uploads fail with a size or type error** — the `ghost-storage` function enforces 100 MiB and the
+`.smsghost` extension independently of the browser, and `ghosts_file_size_range` (0015) does the same
+in the database. Confirm 0015 ran and the function is deployed.
+
+**Uploads or downloads fail with a network error** — usually the R2 CORS rule (section 2.5): the
+origin must be listed exactly, scheme and host, no path. A `403` on the PUT itself means the request
+differed from what was signed (a different size or a missing header), or the 15-minute URL expired
+before the upload started; uploading again gets a fresh URL.
+
+**"A file with that name is already stored"** — the bucket refused to overwrite an existing object
+(`object_exists`). Ghost files are never replaced in place; uploading again uses a new key.
 
 **Download counts are not moving** — counting only happens for signed-in users who are not the
 ghost's author, and only once per ghost per hour per account. All three are intentional.

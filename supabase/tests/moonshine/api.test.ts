@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { callAs, createApp, sha256Hex } from './harness.ts'
+import { ARCHIVE_BASE_URL, callAs, createApp, sha256Hex } from './harness.ts'
 import { buildGhost, finalize } from './fixtures.ts'
 
 const ALICE = '11111111-1111-4111-8111-111111111111'
@@ -61,7 +61,8 @@ test('capabilities declares versions, limits and auth without needing a key', as
   assert.equal(res.body.api_version, 1)
   assert.deepEqual(res.body.formats[0].versions, [3, 4, 5, 6, 7, 8, 9])
   assert.equal(res.body.formats[0].required_features_by_version[9], 63)
-  assert.equal(res.body.limits.max_upload_bytes, 1_297_992)
+  assert.equal(res.body.limits.max_upload_bytes, 104_857_600)
+  assert.equal(res.body.limits.max_download_bytes, 104_857_600)
   assert.equal(res.body.auth.client_key_required, false)
   assert.equal(res.headers.get('access-control-allow-origin'), '*')
 
@@ -106,7 +107,7 @@ test('website uploads are validated server-side before they are advertised', asy
   assert.equal(entry.format.version, 9)
   assert.deepEqual(entry.format.features, ['extended_codec', 'teaching', 'fludd', 'visual_v7', 'camera', 'initial_rng'])
   assert.equal(entry.file.sha256, await sha256Hex(app.storage.archive.get(good.path)!))
-  assert.equal(entry.file.download_url, `https://example-ref.supabase.co/storage/v1/object/public/ghosts/${good.path}`)
+  assert.equal(entry.file.download_url, `${ARCHIVE_BASE_URL}/${good.path}`)
   assert.equal(entry.route.key, '02.2.ff.00.-1')
   assert.equal(entry.route.portable_across_regions, true)
   assert.deepEqual(entry.timing, { unit: 'qf', result_qf: 44, start_qf: 0, end_qf: 44, duration_qf: 44, export_duration_ms: 367 })
@@ -124,14 +125,15 @@ test('website uploads are validated server-side before they are advertised', asy
   assert.equal((await app.request('GET', `/v1/ghosts/${crypto.randomUUID()}`)).status, 404)
 })
 
-test('oversized but otherwise valid files stay on the website and are not advertised', async () => {
+test('files past the canonical format size stay on the website and are not advertised', async () => {
   const app = await setup()
-  // 9 splits pushes a V5 past 1,297,992 bytes only at full capacity, so fake the size.
-  const big = new Uint8Array(1_297_993)
+  // A ~3 MB file is within the 100 MiB archive limit, but PR27's validator caps
+  // canonical ghosts at 1,298,016 bytes, so it is invalid rather than too_large.
+  const big = new Uint8Array(3_000_000)
   big.set(buildGhost({ version: 5 }))
   const ghost = await websiteUpload(app, ALICE, big)
   const res = await app.request('POST', `/v1/ghosts/${ghost.id}/index`)
-  assert.deepEqual([res.body.status, res.body.code], ['too_large', 'too_large'])
+  assert.deepEqual([res.body.status, res.body.code], ['invalid', 'invalid_ghost'])
   assert.equal((await app.request('GET', '/v1/ghosts')).body.total, 0)
 })
 
@@ -458,6 +460,49 @@ test('upload happy path preserves bytes exactly and publishes under the token ow
   assert.equal((await app.request('GET', '/v1/ghosts')).body.items[0].id, ghost.id)
 })
 
+test('a valid ghost larger than the old 1,297,992-byte cap goes through upload, publish and download', async () => {
+  const app = await setup()
+  const { access_token: token } = await app.linkDevice(ALICE)
+  // The largest file the PR27 format allows: a V5 at full capacity with 8 splits.
+  // Inputs 1 QF apart so 54,000 of them fit the 107,892 QF timeline.
+  const bytes = buildGhost({ version: 5, segments: [26_974], inputs: 54_000, inputStepQf: 1, splits: 8 })
+  assert.equal(bytes.length, 1_298_016)
+  assert.ok(bytes.length > 1_297_992 && bytes.length <= 104_857_600)
+
+  const { created, put, published } = await uploadViaApi(app, token, bytes, { filename: 'big.smsghost' })
+  assert.equal(created.status, 201, JSON.stringify(created.body))
+  assert.equal(put.status, 200, JSON.stringify(put.body))
+  assert.equal(published!.status, 201, JSON.stringify(published!.body))
+  const ghost = published!.body.ghost
+  assert.equal(ghost.file.byte_length, 1_298_016)
+  assert.deepEqual(app.storage.archive.get(ghost.file.path), bytes)
+  assert.equal(ghost.file.download_url, `${ARCHIVE_BASE_URL}/${ghost.file.path}`)
+
+  const file = await app.request('GET', `/v1/ghosts/${ghost.id}/file`)
+  assert.equal(file.status, 302)
+  assert.equal(file.headers.get('location'), ghost.file.download_url)
+})
+
+test('ghosts over 100 MiB are refused as too_large before any bytes are read', async () => {
+  const app = await setup()
+  const { access_token: token } = await app.linkDevice(ALICE)
+  const over = await app.request('POST', '/v1/uploads', {
+    token, body: { byte_length: 104_857_601, sha256: 'a'.repeat(64) },
+  })
+  assert.deepEqual([over.status, over.body.error.code], [413, 'too_large'])
+  const exact = await app.request('POST', '/v1/uploads', {
+    token, body: { byte_length: 104_857_600, sha256: 'b'.repeat(64) },
+  })
+  assert.equal(exact.status, 201, JSON.stringify(exact.body))
+
+  // A content PUT declaring more than the limit is refused on its Content-Length alone.
+  const id = exact.body.upload.upload_id
+  const res = await app.request('PUT', `/v1/uploads/${id}/content`, {
+    token, body: new Uint8Array(1), headers: { 'content-length': '104857601' },
+  })
+  assert.deepEqual([res.status, res.body.error.code], [413, 'too_large'])
+})
+
 test('retrying any step never creates a duplicate', async () => {
   const app = await setup()
   const { access_token: token } = await app.linkDevice(ALICE)
@@ -542,7 +587,7 @@ test('corrupt, truncated, unsupported and mismatched content is refused', async 
   assert.equal((await app.request('PUT', `/v1/uploads/${id}/content`, { token, body: good })).status, 200)
 
   // Declared too large: refused before any bytes move.
-  const big = await app.request('POST', '/v1/uploads', { token, body: { byte_length: 1_297_993, sha256: 'a'.repeat(64) } })
+  const big = await app.request('POST', '/v1/uploads', { token, body: { byte_length: 104_857_601, sha256: 'a'.repeat(64) } })
   assert.deepEqual([big.status, big.body.error.code], [413, 'too_large'])
   assert.equal((await app.request('POST', '/v1/uploads', { token, body: { byte_length: 10, sha256: 'xyz' } })).status, 400)
   assert.equal(app.storage.archive.size, 0)

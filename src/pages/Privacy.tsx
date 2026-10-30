@@ -162,6 +162,25 @@ export function Privacy() {
             </a>
             .
           </li>
+          {/*
+            DRAFT, pending owner review (R2 migration, branch r2-storage). Not final:
+            check the wording, the bucket's storage location/jurisdiction setting, and
+            whether the Supabase bullet above should drop "file storage" once the old
+            Supabase `ghosts` bucket is removed. Update the "last updated" date when
+            this is approved.
+          */}
+          <li>
+            <strong>Cloudflare, Inc.</strong> (United States) stores the ghost files themselves, using
+            its R2 storage service, and delivers them when anyone downloads a ghost, from the website
+            or from Moonshine. Cloudflare receives the IP address and request details of every
+            download, including guests&apos; downloads, and may log them for security and to run the
+            service. It never receives your password or account details: uploads reach it only
+            through a short-lived link issued by our Supabase server program. See{' '}
+            <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">
+              Cloudflare&apos;s privacy policy
+            </a>
+            .
+          </li>
           <li>
             <strong>GitHub, Inc.</strong> (United States) hosts the website itself through GitHub
             Pages. When you load the site, GitHub receives your IP address and request details and

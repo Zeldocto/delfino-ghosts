@@ -80,8 +80,12 @@ export interface PlayerRanking {
 }
 
 export const GHOST_LIMIT = 200
-/** Must match the bucket's file_size_limit and the ghosts_file_size_range check (migration 0010). */
-export const MAX_GHOST_BYTES = 10 * 1024 * 1024
+/**
+ * Must match MAX_GHOST_BYTES in supabase/functions/_shared/ghost_paths.ts (what
+ * the ghost-storage function will sign) and the ghosts_file_size_range check
+ * (migration 0015). This copy only gives early feedback in the browser.
+ */
+export const MAX_GHOST_BYTES = 100 * 1024 * 1024
 export const MAX_GHOST_LABEL = `${MAX_GHOST_BYTES / 1024 / 1024} MB`
 export const GHOST_EXTENSION = '.smsghost'
 export const PAGE_SIZE = 25

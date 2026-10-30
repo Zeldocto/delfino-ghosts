@@ -47,11 +47,17 @@ export function friendlyError(err: unknown, fallback = 'Something went wrong. Tr
   if (text.includes('violates check constraint') || code === '23514') {
     return 'Some of those values are not allowed. Check the form and try again.'
   }
-  if (text.includes('payload too large') || text.includes('exceeded the maximum allowed size')) {
+  if (text.includes('too_large') || text.includes('payload too large') || text.includes('exceeded the maximum allowed size')) {
     return `That file is larger than the ${MAX_GHOST_LABEL} limit.`
   }
   if (text.includes('mime type') || text.includes('invalid_mime_type')) {
     return 'That file type is not accepted here.'
+  }
+  if (text.includes('object_exists')) {
+    return 'A file with that name is already stored for this ghost. Try uploading again.'
+  }
+  if (text.includes('storage_unavailable') || text.includes('storage_key_mismatch')) {
+    return 'The file could not be stored. Try again in a moment.'
   }
   if (text.includes('failed to fetch') || text.includes('networkerror')) {
     return 'Could not reach the server. Check your connection and try again.'

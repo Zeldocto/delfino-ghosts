@@ -8,9 +8,16 @@
  *
  * SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected by Supabase. The
  * service-role key stays inside this function; no client ever receives it.
+ *
+ * Archive ghosts live in an S3-compatible bucket (Cloudflare R2), configured by
+ * the same secrets as ghost-storage: S3_ENDPOINT, S3_BUCKET, S3_REGION,
+ * S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, GHOSTS_PUBLIC_BASE_URL. Upload
+ * staging stays in the private Supabase bucket `ghost-uploads`.
  * Optional secrets: MOONSHINE_SITE_URL, MOONSHINE_RATE_SALT.
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0'
+import { AwsClient } from 'npm:aws4fetch@1.0.20'
+import { createS3, s3ConfigFromEnv } from '../_shared/s3.ts'
 import { createHandler, DbError, type ObjectStore } from './app.ts'
 
 declare const Deno: {
@@ -71,7 +78,8 @@ function bucket(name: string) {
 }
 
 const staging = bucket('ghost-uploads')
-const archive = bucket('ghosts')
+const s3Config = s3ConfigFromEnv((name) => Deno.env.get(name))
+const archive = createS3(s3Config, AwsClient)
 
 const storage: ObjectStore = {
   putStaging: (path, bytes) => staging.put(path, bytes),
@@ -79,13 +87,13 @@ const storage: ObjectStore = {
   removeStaging: (paths) => staging.remove(paths),
   putArchive: (path, bytes) => archive.put(path, bytes),
   getArchive: (path) => archive.get(path),
-  removeArchive: (path) => archive.remove([path]),
+  removeArchive: (path) => archive.remove(path),
 }
 
 const handler = createHandler({
   db,
   storage,
-  supabaseUrl,
+  archiveBaseUrl: s3Config.publicBaseUrl,
   apiBaseUrl: `${supabaseUrl}/functions/v1/moonshine-api`,
   siteUrl,
   rateSalt: Deno.env.get('MOONSHINE_RATE_SALT') ?? serviceKey,

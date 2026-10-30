@@ -31,12 +31,16 @@ jobs:
 
       - name: Build
         env:
-          # Both values are public client configuration. They are kept in
+          # All three values are public client configuration. They are kept in
           # repository *variables* rather than the source tree only so that a
-          # fork builds against its own Supabase project — not because the anon
-          # key is a secret. The service_role key must never appear here.
+          # fork builds against its own Supabase project and bucket — not
+          # because any of them is a secret. The service_role key and the
+          # S3/R2 access keys must never appear here; they live only in the
+          # Edge Function secrets.
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+          # Public download base of the ghost file bucket (R2 custom domain), no trailing slash.
+          VITE_GHOSTS_PUBLIC_BASE_URL: ${{ vars.VITE_GHOSTS_PUBLIC_BASE_URL || secrets.VITE_GHOSTS_PUBLIC_BASE_URL }}
           # Serves the app from /<repository-name>/, so renaming the repo works.
           BASE_PATH: /${{ github.event.repository.name }}/
         run: npm run build

@@ -26,8 +26,9 @@ Contents: [1 Status](#1-status-what-is-deployed) · [2 URLs and keys](#2-urls-an
 | Website `zeldocto.github.io/delfino-ghosts`, including `/link` and Settings → Linked devices | **Live** (commit `e58f4d2`) | GitHub Pages run succeeded |
 | Database migrations 0001–0013 | **Live** | 0012 objects and grants checked on the live DB. Service-only functions and private tables refuse the public key. 0007 and 0011 recovered from the live definitions into the repo |
 | Edge Function `moonshine-api` | **Live**, JWT verification off, rate-limit salt set | Answers with no key at all |
-| Public `ghosts` bucket (downloads) | **Live**: public, 10 MiB limit (10,485,760), anonymous GET, `206` on Range | Bucket row read on the live DB; `curl` |
-| Private `ghost-uploads` staging bucket | **Live**: not public, 1,297,992-byte limit, `application/octet-stream` only | Bucket row read on the live DB |
+| Public `ghosts` bucket (downloads) | **Live**, being replaced: public, 10 MiB limit (10,485,760), anonymous GET, `206` on Range | Bucket row read on the live DB; `curl` |
+| Archive in Cloudflare R2 + migration 0015 (100 MiB limit) | **Pending** (branch `r2-storage`): ghost files move to an S3-compatible bucket with a public read URL; `download_url` points there. API and catalogue shape unchanged | Local tests only |
+| Private `ghost-uploads` staging bucket | **Live**: not public, 1,297,992-byte limit, `application/octet-stream` only. 0015 raises it to 100 MiB | Bucket row read on the live DB |
 | Validation of existing ghosts (backfill) | **Done**: 121 of 121 compatible. Every listed SHA-256 matches the bytes downloaded before deploy | Live catalogue compared with the corpus |
 | Live end-to-end check | **Passed**, on a real account | See below |
 | Migration 0014 + function update (`sort=route`, filter-bound cursors, `Server-Timing`) | **Live** 2026-10-25 (function version 3 + migration 0014) | 20 local tests pass; live checks of route order, paging, filter-bound and legacy cursors, connection reuse |
@@ -58,7 +59,7 @@ The archive still holds exactly 121 ghosts afterwards.
 | API base | `https://cvadewafbthfhvzgdgay.supabase.co/functions/v1/moonshine-api` | **live** |
 | Capabilities | `GET {base}/v1/capabilities` | live |
 | Player approval page | `https://zeldocto.github.io/delfino-ghosts/link` (optional `?code=XXXX-XXXX`) | live |
-| Ghost downloads | `https://cvadewafbthfhvzgdgay.supabase.co/storage/v1/object/public/ghosts/<path>` | **live** |
+| Ghost downloads | `https://<GHOSTS_PUBLIC_BASE_URL>/<path>` (R2 public domain, once deployed). Today: `https://cvadewafbthfhvzgdgay.supabase.co/storage/v1/object/public/ghosts/<path>`. Always use `file.download_url` rather than building it | **live** (moving) |
 | Website ghost page | `https://zeldocto.github.io/delfino-ghosts/ghost/<id>` | live |
 | Supabase publishable key | `sb_publishable_mrh55bmXKXF_paQ7WTb3lA_oeJHWILU` | live; **intentionally public** (it ships in the website JS). **The Moonshine API does not need it.** It is only for calling the RPCs directly through PostgREST (§5.9) |
 
@@ -179,7 +180,7 @@ curl -s "$BASE/v1/capabilities"
     "unknown_required_features": "rejected (unsupported_feature)"
   }],
   "limits": {
-    "max_upload_bytes": 1297992, "max_download_bytes": 1297992,
+    "max_upload_bytes": 104857600, "max_download_bytes": 104857600,
     "page_size_default": 20, "page_size_max": 50,
     "upload_session_ttl_s": 86400, "max_open_uploads": 5, "max_content_attempts": 10,
     "upload_creates_per_hour": 30,
@@ -280,7 +281,7 @@ curl -s "$BASE/v1/ghosts?route_key=02.2.ff.00.-1&sort=newest&limit=1"
       "sha256": "05ba53e4cbf31135bd689755092505c8fd53c8d4965d4082ad0ce2eb96224d39",
       "crc32": "35CA8C1C",
       "content_type": "application/octet-stream",
-      "download_url": "https://cvadewafbthfhvzgdgay.supabase.co/storage/v1/object/public/ghosts/6f1c2d4e-8a3b-4c5d-9e7f-0a1b2c3d4e5f/b852e301-ea86-48b8-8838-4bd6def79c05/2026_10_24_BH3_37337_1A2B3C4D_.smsghost"
+      "download_url": "https://ghosts.example.org/6f1c2d4e-8a3b-4c5d-9e7f-0a1b2c3d4e5f/b852e301-ea86-48b8-8838-4bd6def79c05/2026_10_24_BH3_37337_1A2B3C4D_.smsghost"
     },
     "format": {
       "magic": "SGHF", "version": 9, "required_features": 63,
@@ -357,8 +358,11 @@ curl -sS -H 'Range: bytes=0-65535' -o part0 "$DOWNLOAD_URL"      # 206 Partial C
 - **Missing object quirk (observed live):** a deleted or nonexistent object returns **HTTP 400** with
   body `{"statusCode":"404","error":"not_found","message":"Object not found"}`. Treat any non-2xx as
   "not available" and drop the entry from local caches.
-- Size: every listed ghost is ≤ 1,297,992 bytes (`limits.max_download_bytes`). Today's largest live
-  ghost is 94,648 bytes.
+- Size: every listed ghost is ≤ `limits.max_download_bytes` (104,857,600 bytes, 100 MiB, from
+  0015). In practice a compatible ghost is far smaller: the PR27 format caps canonical files at
+  1,298,016 bytes, and today's largest live ghost is 94,648 bytes. **Older Moonshine builds may still
+  enforce their own 1.3 MB cap on the client**; read the limit from capabilities rather than
+  hard-coding it.
 - **Integrity:** after download, check `byte_length` and `sha256`, then run Moonshine's own local
   validation before installing. If the hash differs, the website owner replaced the file after you
   listed it. Re-fetch the entry (`GET /v1/ghosts/{id}`) and try again.
@@ -499,7 +503,7 @@ curl -s -X POST "$BASE/v1/uploads" \
   }
 }
 ```
-Body fields: `byte_length` (required, 1–1,297,992), `sha256` (required, 64 hex), and optionally
+Body fields: `byte_length` (required, 1–104,857,600), `sha256` (required, 64 hex), and optionally
 `filename` (≤200; display only), `title` (≤100; defaults to the file's header name, e.g.
 `Bianco Hills 3 - 0:37.337`), `description` (≤2000), and `tas_declared` (`true` / `false` / `null`).
 Header `Idempotency-Key` is optional: 1–64 characters of `[A-Za-z0-9_.:-]`, unique per account.
@@ -605,7 +609,7 @@ curl -s -X POST https://cvadewafbthfhvzgdgay.supabase.co/rest/v1/rpc/moonshine_l
   -d '{"p_route_key":"02.2.ff.00.-1","p_limit":20}'
 ```
 This returns the same `items`/`next_cursor`/`total`, but without `download_url` and `page_url`. Build
-the download URL as `https://cvadewafbthfhvzgdgay.supabase.co/storage/v1/object/public/ghosts/` +
+the download URL as the archive's public base (the R2 domain; `GHOSTS_PUBLIC_BASE_URL`) + `/` +
 `file.path`, with each path segment URL-encoded. This is live, but the Edge
 Function is the supported interface; prefer it.
 
@@ -698,7 +702,10 @@ are website display data.
 **What "compatible" means here:** the stored bytes pass a strict port of Moonshine's
 `scripts/validate_ghost.py` (snapshot *Moonshine PR27, 2026-10-24*; the hashes of
 `ghost_format.h`, `ghost_format.md` and `validate_ghost.py` match `SOURCE-MANIFEST.json`), **and** the
-file is at most **1,297,992 bytes**. The check runs on the server, on the exact bytes in Storage.
+file is at most **104,857,600 bytes** (100 MiB, the service limit shared with the website, 0015).
+The check runs on the server, on the exact bytes in the archive bucket. The size limit is not a
+format rule: the validator's own canonical limit (1,298,016 bytes for V5+, 433,888 for V3/V4) still
+applies, so a larger SGHF file is `invalid`, not `too_large`.
 Browser validation is UI help only.
 
 - **Versions:** SGHF V3–V9 are accepted. V1, V2 and any version above 9 → `unsupported_version`.
@@ -715,13 +722,14 @@ Browser validation is UI help only.
   the same class, the same message and the same parsed result in both the TypeScript port and
   Moonshine's Python validator. A deliberately broken rule makes the test fail.
 - **Bytes are preserved exactly**, including camera, input/split and initial-RNG data. Nothing is
-  re-encoded, trimmed or normalised. A validated archive object is immutable in Storage: overwriting
-  it in place is refused by policy. A website replacement creates a new object, and that new object
+  re-encoded, trimmed or normalised. A validated archive object is immutable: uploads are presigned
+  with `If-None-Match: *` and the website's `ghost-storage` function refuses to delete it. A website replacement creates a new object, and that new object
   is validated afresh.
-- **Size limits are kept separate:** the API advertises and accepts at most 1,297,992 bytes (the
-  maximum canonical size Moonshine states). The website archive bucket keeps its own, larger limit
-  (10 MiB per the repo; deployed value unconfirmed, §14). Larger or unsupported files may stay on
-  the website, but they are never listed as compatible (`status: "too_large"` / `"unsupported"`).
+- **One size limit:** since 0015 the API and the website archive share 100 MiB
+  (104,857,600 bytes). Files the validator rejects (including anything past the format's canonical
+  size) or that use an unsupported version stay on the website, but are never listed as compatible
+  (`status: "invalid"` / `"unsupported"`; `"too_large"` only past 100 MiB). The MSTR trace format
+  (`.msgt`) is not accepted by the archive yet.
 - **Region:** the server doesn't restrict regions. `game.region`, `route.portable_across_regions`
   and `playable_on` let the game apply its own personal-library vs imported-pool rules.
 - **Live archive today:** 121 ghosts, all valid under the reference: 78 V4, 40 V5, 2 V6, 1 V7, and
@@ -760,7 +768,7 @@ it as one.
 | 409 | `too_many_devices` | no | (website) 10 linked devices already |
 | 409 | `stale` | yes | (index) ghost changed while being read |
 | 410 | `upload_expired` | no | Session expired. Create a new one |
-| 413 | `too_large` | no | Over 1,297,992 bytes |
+| 413 | `too_large` | no | Over 104,857,600 bytes (100 MiB) |
 | 422 | `length_mismatch` | yes | Body length ≠ `byte_length`. Resend |
 | 422 | `sha256_mismatch` | yes | Body hash ≠ `sha256`. Resend |
 | 422 | `invalid_ghost` | no | Corrupt or non-canonical file. `detail` = validator message |
@@ -777,7 +785,7 @@ it as one.
 
 | Limit | Value |
 | --- | --- |
-| Max ghost size (API upload and listing) | 1,297,992 bytes |
+| Max ghost size (API upload and listing) | 104,857,600 bytes (100 MiB; canonical SGHF files are far smaller) |
 | Page size | default 20, max 50 |
 | Device code lifetime / poll interval | 600 s / 5 s (grows by 5 s per `slow_down`, max 60 s) |
 | Device-code starts | 10 per client IP per 10 min |
@@ -902,7 +910,7 @@ components:
           properties:
             path: {type: string}
             filename: {type: string, description: "Display only; never use as a path"}
-            byte_length: {type: integer, maximum: 1297992}
+            byte_length: {type: integer, maximum: 104857600}
             sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
             crc32: {type: string, pattern: "^[0-9A-F]{8}$"}
             content_type: {type: string, const: application/octet-stream}
@@ -1157,7 +1165,7 @@ paths:
               type: object
               required: [byte_length, sha256]
               properties:
-                byte_length: {type: integer, minimum: 1, maximum: 1297992}
+                byte_length: {type: integer, minimum: 1, maximum: 104857600}
                 sha256: {type: string, pattern: "^[0-9a-fA-F]{64}$"}
                 filename: {type: string, maxLength: 200}
                 title: {type: string, maxLength: 100}
@@ -1226,8 +1234,11 @@ paths:
 | `supabase/migrations/0013_moonshine_retention.sql` | Retention limits: device records are deleted with the account and 30 days after unlinking; finished upload sessions are deleted 30 days after they end |
 | `supabase/migrations/0014_moonshine_route_sort.sql` | Catalogue `sort=route` and filter-bound cursors (§5.2). Same function signature and result shape; `catalogue_schema` stays 1 |
 | `supabase/functions/moonshine-api/app.ts` | HTTP API (routing, auth, uploads, catalogue). Runtime-agnostic |
-| `supabase/functions/moonshine-api/index.ts` | Deno entry: wires Supabase RPC and Storage with the service-role key, which stays server-side |
-| `supabase/functions/_shared/ghost_format.ts` | Strict TypeScript port of `validate_ghost.py` plus the 1,297,992-byte ceiling |
+| `supabase/functions/moonshine-api/index.ts` | Deno entry: wires Supabase RPC and the staging bucket (service-role key) and the R2 archive (S3 secrets); all keys stay server-side |
+| `supabase/functions/_shared/ghost_format.ts` | Strict TypeScript port of `validate_ghost.py` plus the service's size ceiling (100 MiB since 0015) |
+| `supabase/functions/_shared/s3.ts`, `ghost_paths.ts` | S3-compatible archive client (aws4fetch) and the object-key rules |
+| `supabase/functions/ghost-storage/` | Website-only function: presigned uploads and deletes for the archive bucket |
+| `supabase/migrations/0015_size_100mb.sql` | One 100 MiB limit for archive and API |
 | `supabase/scripts/moonshine_backfill.mjs` | One-off: validate the existing archive (public endpoints only) |
 | `supabase/tests/moonshine/*` | Tests (§12.5), fixture generator, Python oracle runner, PGlite harness |
 | `supabase/migrations/0007_levels_in_use_per_user.sql`, `0011_tas_filter.sql` | Previously applied but never committed. Recovered verbatim from the live database's function definitions |
@@ -1261,8 +1272,8 @@ paths:
     unchanged to API publishes. The function inserts with an explicit owner; `auth.uid()` is null
     for the service role, so the trigger keeps it.
 - **Storage:**
-  - New private bucket `ghost-uploads`: 1,297,992-byte limit, `application/octet-stream` only, and no
-    client policies.
+  - New private bucket `ghost-uploads`: 1,297,992-byte limit (100 MiB since 0015),
+    `application/octet-stream` only, and no client policies.
   - The `ghosts` bucket's owner **update** and **delete** policies now refuse objects that have a
     validation verdict. Overwriting in place would make the recorded sha256 false. The website now
     replaces a file by uploading a new object and pointing the row at it, which clears the verdict
@@ -1274,6 +1285,7 @@ paths:
 | Item | Value |
 | --- | --- |
 | Function JWT verification | **Off** (`--no-verify-jwt`). Moonshine uses the API's own device tokens |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `GHOSTS_PUBLIC_BASE_URL` | Required since the R2 move. Same values as for `ghost-storage` (README §2.5) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Injected automatically by Supabase into the function. Never put them anywhere else |
 | `MOONSHINE_SITE_URL` (optional secret) | Defaults to `https://zeldocto.github.io/delfino-ghosts` |
 | `MOONSHINE_RATE_SALT` (optional secret) | Random string for rate-limit key hashing. Defaults to a value derived from the service key |
@@ -1362,7 +1374,8 @@ it's wrong.
 1. **Split limit discrepancy.** `validate_ghost.py` allows 8 splits (`V5_MAX_SPLIT_COUNT = 8`,
    computed V5 maximum 1,298,016 bytes). `ghost_format.md` says "Split count, 0–6" and a V5 maximum
    of 1,297,992, matching the prompt. *Current behaviour:* structure follows the validator (7–8 splits
-   accepted); size is capped at 1,297,992. Which is authoritative? Changing either is a one-constant
+   accepted). The service's own cap was 1,297,992 and is 100 MiB since 0015, so the validator's
+   1,298,016 is now the effective limit. Which is authoritative? Changing either is a one-constant
    change on our side.
 2. **Run time and PAL timing.** Which value is the official time of a run: `resultQf`,
    `resultQf − startQf`, or `durationQf`? Does `floor(qf × 1001 / 120)` apply to PAL recordings, or

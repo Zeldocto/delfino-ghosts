@@ -848,11 +848,18 @@ export function isPortableAcrossRegions(ghost: ValidatedGhost): boolean {
 // --- service catalogue fields ------------------------------------------------
 
 /**
- * The service's own size ceiling for files it advertises to Moonshine: the
- * largest canonical file Moonshine says it writes (V5 at maximum capacity with
- * six splits). The archive bucket itself still accepts larger files.
+ * The service's own size ceiling for files it accepts from and advertises to
+ * Moonshine: 100 MiB, the same value as the website's limit (MAX_GHOST_BYTES
+ * in ghost_paths.ts and src/types/index.ts, and the ghosts_file_size_range
+ * CHECK from 0015), so the website and the API share one limit.
+ *
+ * This is not a format rule. validateGhost() above still enforces Moonshine's
+ * own canonical file limit (V5_MAX_GHOST_FILE_SIZE, 1,298,016 bytes under the
+ * PR27 spec), so today no file over that passes as `compatible`; anything
+ * larger is `invalid` rather than `too_large`. Raise the format limit only by
+ * porting an upstream validator change.
  */
-export const MOONSHINE_MAX_FILE_BYTES = 1_297_992
+export const MOONSHINE_MAX_FILE_BYTES = 104_857_600
 
 export type CatalogueStatus = 'compatible' | 'invalid' | 'unsupported' | 'too_large'
 
@@ -871,7 +878,7 @@ export function classifyGhost(data: Uint8Array): ValidationOutcome {
     return {
       status: 'too_large',
       code: 'too_large',
-      detail: `file is ${data.length} bytes; Moonshine's canonical maximum is ${MOONSHINE_MAX_FILE_BYTES}`,
+      detail: `file is ${data.length} bytes; this service accepts at most ${MOONSHINE_MAX_FILE_BYTES}`,
       ghost: null,
     }
   }

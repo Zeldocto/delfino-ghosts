@@ -27,6 +27,7 @@ export const MIGRATIONS = [
   'migrations/0012_moonshine_api.sql',
   'migrations/0013_moonshine_retention.sql',
   'migrations/0014_moonshine_route_sort.sql',
+  'migrations/0015_size_100mb.sql',
 ]
 
 // Grants Supabase gives its roles that the plain stubs do not.
@@ -117,6 +118,8 @@ export class MemoryStore implements ObjectStore {
 
 export const SUPABASE_URL = 'https://example-ref.supabase.co'
 export const API = `${SUPABASE_URL}/functions/v1/moonshine-api`
+/** Public base of the archive bucket (GHOSTS_PUBLIC_BASE_URL in production). */
+export const ARCHIVE_BASE_URL = 'https://ghosts.example.org'
 
 export async function createApp() {
   const db = await createDatabase()
@@ -125,7 +128,7 @@ export async function createApp() {
   const handler = createHandler({
     db: { rpc: (fn, args) => callAs(db, 'service_role', null, fn, args) },
     storage,
-    supabaseUrl: SUPABASE_URL,
+    archiveBaseUrl: ARCHIVE_BASE_URL,
     apiBaseUrl: API,
     siteUrl: 'https://zeldocto.github.io/delfino-ghosts',
     rateSalt: 'test-salt',

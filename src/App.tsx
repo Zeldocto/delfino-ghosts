@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './hooks/useTheme'
 import { MdpProvider } from './hooks/useMdp'
 import { isSupabaseConfigured } from './lib/supabase'
+import { isStorageConfigured } from './lib/ghost/GhostStorage'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
 import { GhostDetail } from './pages/GhostDetail'
@@ -59,10 +60,12 @@ function ConfigurationNeeded() {
       <h1 className="page-title">Delfino Ghosts is not configured</h1>
       <div className="prose" style={{ marginTop: 14 }}>
         <p>
-          This build has no Supabase connection. Copy <code>.env.example</code> to <code>.env</code>,
-          fill in <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> from your
-          Supabase project, then restart the dev server. For the deployed site, set the same two
-          values as repository secrets so the Actions workflow can build with them.
+          This build is missing its connection settings. Copy <code>.env.example</code> to{' '}
+          <code>.env</code>, fill in <code>VITE_SUPABASE_URL</code> and{' '}
+          <code>VITE_SUPABASE_ANON_KEY</code> from your Supabase project and{' '}
+          <code>VITE_GHOSTS_PUBLIC_BASE_URL</code> from your ghost file bucket, then restart the dev
+          server. For the deployed site, set the same three values as repository variables so the
+          Actions workflow can build with them.
         </p>
         <p>The README walks through the whole setup, including the database migrations.</p>
       </div>
@@ -71,7 +74,7 @@ function ConfigurationNeeded() {
 }
 
 export default function App() {
-  if (!isSupabaseConfigured) return <ConfigurationNeeded />
+  if (!isSupabaseConfigured || !isStorageConfigured) return <ConfigurationNeeded />
 
   return (
     <ErrorBoundary>
