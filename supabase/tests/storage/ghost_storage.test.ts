@@ -131,6 +131,22 @@ test('presign-upload signs one key under the caller, one exact size and type, no
   assert.ok(!JSON.stringify(res.body).includes('test-secret'))
 })
 
+test('presign-upload accepts names whose cleaned stem ends in a dot', async () => {
+  const { call } = await setup()
+  // Left as-is, each of these became `<stem>..smsghost`, which the traversal check refuses.
+  for (const [filename, leaf] of [
+    ['abc..smsghost', 'abc.smsghost'],
+    [`${'a'.repeat(95)}.b.smsghost`, `${'a'.repeat(95)}.smsghost`], // truncated at 96 chars, right after a dot
+    ['....smsghost', 'ghost.smsghost'],
+  ]) {
+    const ghostId = crypto.randomUUID()
+    const res = await call(ALICE, { action: 'presign-upload', ghost_id: ghostId, filename, byte_size: 10 })
+    assert.equal(res.status, 200, `${filename}: ${JSON.stringify(res.body)}`)
+    assert.equal(res.body.key, `${ALICE}/${ghostId}/${leaf}`)
+    assert.equal(safeFilename(filename), leaf)
+  }
+})
+
 test('presign-upload refuses guests, deleted accounts, bad input and anything over 100 MiB', async () => {
   const { db, call } = await setup()
   const base = { action: 'presign-upload', ghost_id: crypto.randomUUID(), filename: 'a.smsghost', byte_size: 10 }

@@ -30,6 +30,7 @@ export function safeFilename(name: string): string {
     .replace(/\.{2,}/g, '_')
     .replace(/^[._-]+/, '')
     .slice(0, 96)
+    .replace(/\.+$/, '') // else `abc.` + `.smsghost` makes a `..` the key check refuses
   return `${cleaned || 'ghost'}.smsghost`
 }
 
