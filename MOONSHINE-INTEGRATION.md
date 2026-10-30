@@ -366,7 +366,8 @@ curl -sS -H 'Range: bytes=0-65535' -o part0 "$DOWNLOAD_URL"      # 206 Partial C
 - **Integrity:** after download, check `byte_length` and `sha256`, then run Moonshine's own local
   validation before installing. If the hash differs, the website owner replaced the file after you
   listed it. Re-fetch the entry (`GET /v1/ghosts/{id}`) and try again.
-- **Filenames:** `file.filename` is display text (sanitised to `[A-Za-z0-9._-]`, but up to 105 bytes,
+- **Filenames:** `file.filename` is display text (`[A-Za-z0-9._-]`, ending `.smsghost`, enforced by a
+  database CHECK since migration 0016; up to 105 bytes,
   over the import leaf's 95-byte limit). Do not use it as a path. Build the local leaf yourself,
   e.g. the spec's host convention `g_<header_ghost_id>.smsghost`.
 - Downloads through the API do **not** count toward the website's download counters or rankings.

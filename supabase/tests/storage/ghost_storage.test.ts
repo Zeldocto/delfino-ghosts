@@ -7,6 +7,8 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { AwsClient } from 'aws4fetch'
 import { createDatabase } from '../moonshine/harness.ts'
 import { createHandler, PRESIGN_TTL_S } from '../../functions/ghost-storage/app.ts'
@@ -228,4 +230,49 @@ test('the S3 client round-trips bytes and builds public URLs per segment', async
   assert.equal(await bucket.s3.get(key), null)
   await bucket.s3.remove(key) // missing is fine
   assert.equal(publicObjectUrl('https://ghosts.example.org/', 'u/g/a b.smsghost'), 'https://ghosts.example.org/u/g/a%20b.smsghost')
+})
+
+test('a ghosts row written straight through the API cannot rename its download (0016)', async () => {
+  const { db, addRow } = await setup()
+  const id = await addRow(ALICE, `${ALICE}/${crypto.randomUUID()}/g.smsghost`)
+  // Alice calling PostgREST herself with the anon key, not through the website.
+  const asAlice = (query: string, params: unknown[]) =>
+    db.transaction(async (tx) => {
+      await tx.query(`select set_config('request.jwt.claim.sub', $1, true)`, [ALICE])
+      await tx.exec('set local role authenticated')
+      return tx.query(query, params)
+    })
+  const bad = ['Moonshine_update.exe', 'g.smsghost.exe', 'run.bat', '../g.smsghost', '.smsghost', 'g.SMSGHOST', 'a b.smsghost', `${'a'.repeat(97)}.smsghost`]
+  for (const name of bad) {
+    await assert.rejects(
+      asAlice(`insert into public.ghosts (user_id, title, file_path, original_filename, file_size) values ($1, 'x', $2, $3, 10)`, [
+        ALICE, `${ALICE}/${crypto.randomUUID()}/g.smsghost`, name,
+      ]),
+      /ghosts_original_filename_shape/,
+      name,
+    )
+    await assert.rejects(asAlice(`update public.ghosts set original_filename = $2 where id = $1`, [id, name]), /ghosts_original_filename_shape/, name)
+  }
+  // Anything safeFilename produces, including the longest, is accepted.
+  await asAlice(`update public.ghosts set original_filename = $2 where id = $1`, [id, safeFilename(`${'a'.repeat(200)}.exe`)])
+})
+
+test('0016 rewrites existing names exactly as safeFilename would', async () => {
+  const { db, addRow } = await setup()
+  await db.exec('alter table public.ghosts drop constraint ghosts_original_filename_shape')
+  const names = [
+    'Moonshine_update.exe', 'C:\\Users\\me\\run 1.SMSGHOST', 'dir/sub/ok.smsghost', '..hidden...smsghost',
+    '日本.smsghost', '___', `${'b'.repeat(150)}.smsghost`, 'fine-1.2.smsghost',
+  ]
+  const ids: string[] = []
+  for (const name of names) {
+    const id = await addRow(ALICE, `${ALICE}/${crypto.randomUUID()}/g.smsghost`)
+    await db.query(`update public.ghosts set original_filename = $2 where id = $1`, [id, name])
+    ids.push(id)
+  }
+  await db.exec(readFileSync(resolve(import.meta.dirname, '../../migrations/0016_original_filename_shape.sql'), 'utf8'))
+  for (const [i, id] of ids.entries()) {
+    const { rows } = await db.query<{ original_filename: string }>(`select original_filename from public.ghosts where id = $1`, [id])
+    assert.equal(rows[0].original_filename, safeFilename(names[i]), names[i])
+  }
 })

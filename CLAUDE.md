@@ -63,6 +63,9 @@ If you find yourself writing a rule in React, ask whether it belongs in a trigge
 5. **`file_path` must start with the owner's uuid** and contain no `..`. There is a CHECK constraint
    plus the matching key check in the `ghost-storage` Edge Function, which builds every upload key
    from the caller's verified JWT (the bucket itself has no idea who anyone is).
+   **`original_filename`** (the name a download is saved under) must have the shape `safeFilename()`
+   produces, by CHECK since 0016: rows can be written straight through PostgREST, so otherwise a
+   ghost could be served as `something.exe`. `downloadGhost()` re-cleans the name as well.
 6. **Level and time** live on `ghosts.level` (free text) and `ghosts.time_ms` (integer
    milliseconds). Both nullable — pre-existing ghosts have neither, and Browse renders a blank cell
    rather than hiding them. Never store a formatted time string; format at the edge with
@@ -142,6 +145,7 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0013 retention limits for device and upload records
                       0014 Moonshine catalogue sort=route, filter-bound cursors
                       0015 one 100 MiB size limit (archive + Moonshine)
+                      0016 original_filename must have safeFilename()'s shape
 supabase/functions/   moonshine-api/ · ghost-storage/ (presign + delete for the bucket)
                       _shared/ghost_format.ts (validator) · _shared/s3.ts (S3 client, aws4fetch)
                       _shared/ghost_paths.ts (key rules, safeFilename, MAX_GHOST_BYTES)

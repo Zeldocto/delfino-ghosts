@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { ghostPublicUrl } from './ghost/GhostStorage'
+import { ghostPublicUrl, safeFilename } from './ghost/GhostStorage'
 import type { GhostListing } from '../types'
 
 export interface DownloadOutcome {
@@ -37,8 +37,10 @@ export async function downloadGhost(
   }
 
   // The bytes are saved exactly as stored — nothing here rewrites the container.
+  // The name is re-cleaned so a download is always a .smsghost, whatever the row says
+  // (the database enforces the same shape since 0016).
   const blob = await response.blob()
-  saveBlob(blob, ghost.original_filename)
+  saveBlob(blob, safeFilename(ghost.original_filename))
 
   const countable = Boolean(viewerId) && viewerId !== ghost.user_id
   if (!countable) {
