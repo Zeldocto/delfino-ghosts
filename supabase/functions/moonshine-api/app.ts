@@ -278,6 +278,9 @@ function optionalString(body: Record<string, unknown>, key: string, max: number)
   return value
 }
 
+// Supabase's gateway does not pass a client-sent X-Forwarded-For through: on the live project
+// (2026-10-31) eleven device-code starts, each claiming a different IP, were still limited
+// together. Re-check this if the function ever moves to another host.
 function clientIp(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for')
   if (forwarded) return forwarded.split(',')[0].trim()
