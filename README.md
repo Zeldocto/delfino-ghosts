@@ -231,6 +231,7 @@ supabase db push
 | `supabase/migrations/0014_moonshine_route_sort.sql` | Moonshine catalogue: `sort=route` (browse by starting level) and cursors bound to their filters. Deploy the function **before** running this |
 | `supabase/migrations/0015_size_100mb.sql` | One 100 MiB size limit for the archive and the Moonshine API (table checks, `moonshine_config()`, staging bucket). Only raises limits; deploy both Edge Functions **before** running this |
 | `supabase/migrations/0016_original_filename_shape.sql` | A ghost's download name must be a plain `.smsghost` filename, so nobody can make visitors save `something.exe`. Cleans up any existing odd names first |
+| `supabase/migrations/0017_index_force_validator.sql` | The public re-validate call (`?force=1`) only re-reads a ghost after a validator update, so it can't be used to make the server download files over and over. Safe to run before or after deploying `moonshine-api` |
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.

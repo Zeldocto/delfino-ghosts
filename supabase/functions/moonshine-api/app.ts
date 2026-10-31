@@ -459,10 +459,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!rate.allowed) fail('rate_limited', { retry_after_s: rate.retry_after_s })
 
     const candidate = (await db.rpc('moonshine_index_candidate', { p_ghost_id: id })) as
-      | { file_path: string; file_size: number; indexed: boolean; status: string | null }
+      | { file_path: string; file_size: number; indexed: boolean; status: string | null; validator?: string | null }
       | null
     if (!candidate) fail('not_found')
-    if (candidate.indexed && !force) {
+    // The bytes are immutable, so a verdict only goes stale when the validator changes:
+    // force re-reads only then, or anyone could make this download any file at will.
+    if (candidate.indexed && (!force || candidate.validator === VALIDATOR_ID)) {
       return json(200, { ghost_id: id, status: candidate.status, compatible: candidate.status === 'compatible', reindexed: false })
     }
 

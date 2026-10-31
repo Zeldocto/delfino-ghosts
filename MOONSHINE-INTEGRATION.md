@@ -597,7 +597,8 @@ compatibility.
 It validates the ghost's *stored* bytes and records the result. The website calls it after every
 browser upload or file replacement, and the backfill script calls it once per existing ghost. It is
 public but cannot be abused to change anything: it reads the bytes itself, and is a no-op for an
-already-validated ghost (`?force=1` re-validates). It is rate-limited to 300 per hour per IP. This is
+already-validated ghost. `?force=1` re-validates only when the stored verdict came from an older
+validator than the one deployed (0017); otherwise it returns the stored verdict too. It is rate-limited to 300 per hour per IP. This is
 the only endpoint the "index calls" limit in §9 refers to; it doesn't apply to the catalogue.
 Moonshine doesn't need it.
 

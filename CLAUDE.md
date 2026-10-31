@@ -146,6 +146,7 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0014 Moonshine catalogue sort=route, filter-bound cursors
                       0015 one 100 MiB size limit (archive + Moonshine)
                       0016 original_filename must have safeFilename()'s shape
+                      0017 index ?force=1 re-reads only after a validator change
 supabase/functions/   moonshine-api/ · ghost-storage/ (presign + delete for the bucket)
                       _shared/ghost_format.ts (validator) · _shared/s3.ts (S3 client, aws4fetch)
                       _shared/ghost_paths.ts (key rules, safeFilename, MAX_GHOST_BYTES)

@@ -8,7 +8,8 @@
  * Uses only public endpoints: the publishable (anon) key to list ghost ids,
  * and the function's public /index endpoint, which reads the stored bytes
  * itself. No secret key is needed. Safe to re-run; indexed ghosts are skipped.
- * Add --force to re-validate everything (e.g. after a validator update).
+ * Add --force after a validator update to re-validate everything the old validator judged
+ * (the function ignores force for verdicts from the validator it is running, 0017).
  */
 const [url, key] = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 const force = process.argv.includes('--force')

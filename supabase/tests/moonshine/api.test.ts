@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ARCHIVE_BASE_URL, callAs, createApp, sha256Hex } from './harness.ts'
 import { buildGhost, finalize } from './fixtures.ts'
+import { VALIDATOR_ID } from '../../functions/_shared/ghost_format.ts'
 
 const ALICE = '11111111-1111-4111-8111-111111111111'
 const BOB = '22222222-2222-4222-8222-222222222222'
@@ -123,6 +124,29 @@ test('website uploads are validated server-side before they are advertised', asy
   assert.equal(file.headers.get('location'), entry.file.download_url)
   assert.equal((await app.request('GET', `/v1/ghosts/${bad.id}/file`)).status, 404)
   assert.equal((await app.request('GET', `/v1/ghosts/${crypto.randomUUID()}`)).status, 404)
+})
+
+test('?force=1 re-reads a ghost only when an older validator judged it', async () => {
+  const app = await setup()
+  const ghost = await websiteUpload(app, ALICE, buildGhost({ version: 9 }))
+  assert.equal((await app.request('POST', `/v1/ghosts/${ghost.id}/index`)).body.reindexed, true)
+
+  // Same validator: force is a no-op, so nobody can make the function re-download files at will.
+  let reads = 0
+  const getArchive = app.storage.getArchive.bind(app.storage)
+  app.storage.getArchive = async (path) => (reads++, getArchive(path))
+  const cached = await app.request('POST', `/v1/ghosts/${ghost.id}/index?force=1`)
+  assert.deepEqual([cached.status, cached.body.reindexed, cached.body.status], [200, false, 'compatible'])
+  assert.equal(reads, 0)
+
+  // After a validator update, force re-checks (what the backfill script's --force is for).
+  await app.admin(`update public.ghost_moonshine_index set validator = 'delfino-sghf-validator/0 (older)' where ghost_id = $1`, [ghost.id])
+  assert.equal((await app.request('POST', `/v1/ghosts/${ghost.id}/index`)).body.reindexed, false)
+  const redone = await app.request('POST', `/v1/ghosts/${ghost.id}/index?force=1`)
+  assert.deepEqual([redone.body.reindexed, redone.body.status], [true, 'compatible'])
+  assert.equal(reads, 1)
+  const { rows } = await app.admin(`select validator from public.ghost_moonshine_index where ghost_id = $1`, [ghost.id])
+  assert.equal((rows[0] as { validator: string }).validator, VALIDATOR_ID)
 })
 
 test('files past the canonical format size stay on the website and are not advertised', async () => {
