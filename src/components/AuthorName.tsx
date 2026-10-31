@@ -38,8 +38,9 @@ export function AuthorName({ username, displayName, link = true, className }: Au
 
   if (!link) return <span className={className}>{body}</span>
 
+  // A marked name has its own tooltip; the browser's title hint would pop up on top of it.
   return (
-    <Link to={`/profile/${username}`} className={className} title={`${username}'s ghosts`}>
+    <Link to={`/profile/${username}`} className={className} title={nameClass ? undefined : `${username}'s ghosts`}>
       {body}
     </Link>
   )
