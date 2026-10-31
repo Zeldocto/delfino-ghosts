@@ -63,7 +63,7 @@ export function About() {
 
         <h2>MDP</h2>
         <p>
-          The Most Download Player is whoever currently has the highest total of counted downloads
+          The Most Downloaded Player is whoever currently has the highest total of counted downloads
           added up across all of their ghosts. Not the most uploads, not the single most popular
           ghost, the sum. Their name shimmers wherever it appears on the site. It is calculated from
           live figures, so it moves to whoever is on top at that moment. Standings are on the{' '}

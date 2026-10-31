@@ -61,7 +61,7 @@ export function Community() {
           <div className="stat-value">
             {stats?.mdp ? <AuthorName username={stats.mdp.username} /> : <span className="cell-dim">Unclaimed</span>}
           </div>
-          <div className="stat-label">Most Download Player</div>
+          <div className="stat-label">Most Downloaded Player</div>
         </div>
       </div>
 

@@ -6,10 +6,12 @@ import { SortSelector } from '../components/SortSelector'
 import { LevelSelector } from '../components/LevelSelector'
 import { Notice } from '../components/Notices'
 import { AuthorName } from '../components/AuthorName'
+import { AccountModeration } from '../components/AccountModeration'
 import { getProfileByUsername } from '../lib/profiles'
 import { fetchLevelsInUse, listGhosts } from '../lib/ghosts'
 import { friendlyError } from '../lib/errors'
 import { useAuth } from '../lib/auth'
+import { useStaff } from '../hooks/useStaff'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatMonthYear, formatNumber } from '../utils/format'
 import {
@@ -24,6 +26,7 @@ import {
 export function Profile() {
   const { username = '' } = useParams()
   const { user } = useAuth()
+  const { isStaff } = useStaff()
   const [params, setParams] = useSearchParams()
   const sort = readSort(params.get('sort'))
   const level = params.get('level') ?? ''
@@ -192,6 +195,8 @@ export function Profile() {
             <dt>Total downloads</dt>
             <dd>{formatNumber(profile.total_downloads)}</dd>
           </dl>
+
+          {isStaff && !isSelf && <AccountModeration userId={profile.id} username={profile.username} />}
         </div>
       </div>
 

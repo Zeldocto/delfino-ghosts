@@ -20,6 +20,27 @@ export function friendlyError(err: unknown, fallback = 'Something went wrong. Tr
   if (text.includes('ghost_not_found')) {
     return 'That ghost no longer exists.'
   }
+  if (text.includes('not_staff')) {
+    return 'Only moderators can do that.'
+  }
+  if (text.includes('not_admin')) {
+    return 'Only the admin can do that.'
+  }
+  if (text.includes('target_is_admin')) {
+    return 'Admins are changed in the Supabase SQL editor, not here.'
+  }
+  if (text.includes('target_is_staff')) {
+    return 'Staff accounts cannot be suspended. Remove the moderator role first.'
+  }
+  if (text.includes('target_is_suspended')) {
+    return 'That account is suspended. Lift the suspension first.'
+  }
+  if (text.includes('user_not_found')) {
+    return 'No account has that username.'
+  }
+  if (text.includes('reason_too_long')) {
+    return 'Keep the reason to 500 characters or fewer.'
+  }
   if (text.includes('username_taken') || (code === '23505' && text.includes('username'))) {
     return 'That username is already taken.'
   }

@@ -36,7 +36,10 @@ Two conventions worth preserving:
 
 - **Gold means MDP and nothing else.** If you introduce gold anywhere else, the shimmer stops
   reading as a status.
-- Water-blue (`--link`) is the only other saturated colour, reserved for actions.
+- Water-blue (`--link`) is reserved for actions.
+- **Red (`--role-admin`) and orange (`--role-moderator`) mark staff names** and nothing else
+  (owner's request, 0018). Plain colour, no shimmer; when a staff member is also MDP, gold wins
+  the colour and the tooltip names both.
 
 Everything is hand-written CSS with custom properties in `src/styles.css`. No Tailwind (the owner's
 other project, moonshine-customs, uses it — a switch has been offered and not taken up).
@@ -72,6 +75,16 @@ If you find yourself writing a rule in React, ask whether it belongs in a trigge
    `formatTime()`.
 7. **MDP is always derived**, never stored as a flag. It is `SUM(download_count)` per author,
    maintained incrementally on `profiles.total_downloads` so lookups are index scans.
+8. **Staff roles** (0018) live in `public.staff`, which clients cannot read or write; everything
+   goes through SECURITY DEFINER functions that check `staff_role_of(auth.uid())` on each call.
+   Admins are granted **only in the SQL editor**, never by a website function. `useStaff()` only
+   decides what to show. Moderator removal deletes the row like an owner delete and logs it in
+   `moderation_log`; `ghost-storage` then lets staff delete that object (still never one a row uses).
+   Staff edits go through `moderator_update_ghost()` (details only, old/new values logged).
+   **Suspension** lives in `account_suspensions` and is enforced by `is_active_account()` /
+   `account_is_active()`: every owner-write policy, device linking, download counting,
+   `moonshine_authenticate` and `ghost-storage` use it. Anything new that lets a user change data
+   must check it too. A suspended account can still delete itself; staff cannot be suspended.
 
 `supabase/tests/security_checks.sql` asserts every one of these. Run it after touching any policy,
 trigger or grant — instructions in README section 4 and at the top of the file. It runs against a
@@ -131,11 +144,12 @@ src/lib/          all database access lives here; components never build queries
   downloads.ts    delivery + the counting RPC call
   profiles.ts     profile reads and updates
   community.ts    stats, leaderboard, current MDP
+  moderation.ts   staff roles, edit/remove ghosts, suspensions, moderation log
   errors.ts       Postgres errors → plain sentences (raw DB text never reaches the UI)
   ghost/          GhostParser, GhostValidator, GhostStorage, GhostMetadata
 src/components/   presentational + form logic
 src/pages/        one file per route
-src/hooks/        useTheme, useMdp, useDebounced, useDocumentTitle
+src/hooks/        useTheme, useMdp, useStaff, useDebounced, useDocumentTitle
 supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0004 level + time · 0005 avatar constraint fix
                       0006 level filter · 0007 per-user levels_in_use
@@ -147,11 +161,12 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0015 one 100 MiB size limit (archive + Moonshine)
                       0016 original_filename must have safeFilename()'s shape
                       0017 index ?force=1 re-reads only after a validator change
+                      0018 moderation: staff roles, edit/remove any ghost, suspensions, log
 supabase/functions/   moonshine-api/ · ghost-storage/ (presign + delete for the bucket)
                       _shared/ghost_format.ts (validator) · _shared/s3.ts (S3 client, aws4fetch)
                       _shared/ghost_paths.ts (key rules, safeFilename, MAX_GHOST_BYTES)
 supabase/scripts/     moonshine_backfill.mjs · migrate_to_r2.mjs (one-off Supabase -> R2 copy)
-supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ · storage/ (node, PGlite)
+supabase/tests/       local_stubs.sql · security_checks.sql · moonshine/ · storage/ · moderation/ (node, PGlite)
 ```
 
 Key components:
@@ -162,7 +177,8 @@ Key components:
   break callers.
 - **`utils/time.ts`** — the only place times are parsed or formatted. `utils/levels.ts` holds the
   episode suggestions and the `BH3` → `Bianco Hills 3` code expansion used for filename hints.
-- **`AuthorName`** — the *only* place a username is rendered. It decides MDP styling and tooltip.
+- **`AuthorName`** — the *only* place a username is rendered. It decides MDP and staff styling and
+  tooltips (staff come from the public `staff_directory()`, loaded once by `StaffProvider`).
   Never render a username directly; route it through here or the designation silently stops
   appearing somewhere.
 - **`GhostList` / `GhostRow`** — the directory listing, shared by Browse, Home and profiles.
@@ -228,6 +244,7 @@ Key components:
 npm run build                # tsc -b then vite build; typecheck is real and strict
 npm run test:moonshine       # Moonshine API + validator tests (PGlite, no Postgres install needed)
 npm run test:storage         # ghost-storage function: key rules, presigning, delete guards
+npm run test:moderation      # staff roles, edits, removal, suspension, log (0018)
 npm run typecheck:moonshine  # Edge Function and test code
 ```
 
@@ -245,8 +262,9 @@ Always check the built asset paths after touching Vite config.
    stored files server-side and only offers passing ones to Moonshine, but a website upload that
    fails validation stays on the website. Routing browser uploads through the function would close
    this.
-2. **No moderation tooling.** Removing a bad upload means going into Supabase by hand. No reporting
-   flow, no admin role, no audit trail beyond `ghost_downloads`.
+2. **Moderation has no reporting flow** (0018). Staff can edit or remove ghosts and suspend
+   accounts, and the admin manages moderators from `/moderation`, with a log. Visitors still cannot
+   report a ghost, and staff cannot replace someone else's file (only its details).
 3. **Download counting resists casual inflation, not determined inflation** across many accounts. The
    `ghost_downloads` log exists so stricter rules can be added without a schema change.
 4. **Supabase's built-in mail is rate-limited** and meant for development. Real SMTP is needed before

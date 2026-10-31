@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Notice } from './Notices'
 import { validateGhostFile, describeParsedGhost, suggestMetadata } from '../lib/ghost'
 import type { ParsedGhost } from '../lib/ghost'
@@ -27,6 +28,10 @@ interface GhostFormProps {
   submitting: boolean
   submitLabel: string
   disabled?: boolean
+  /** False hides the file picker in edit mode (staff edit details, never the file). */
+  allowFileChange?: boolean
+  /** Extra fields shown just above the submit button. */
+  extraFields?: ReactNode
   onSubmit: (values: GhostFormValues, file: File | null) => void | Promise<void>
 }
 
@@ -37,6 +42,8 @@ export function GhostForm({
   submitting,
   submitLabel,
   disabled = false,
+  allowFileChange = true,
+  extraFields,
   onSubmit,
 }: GhostFormProps) {
   const ids = {
@@ -260,26 +267,34 @@ export function GhostForm({
         <span className="field-hint">Optional. Comma separated, up to eight.</span>
       </div>
 
-      <div className="field">
-        <label className="field-label" htmlFor={ids.file}>
-          Ghost file
-        </label>
-        <input
-          id={ids.file}
-          className="input"
-          type="file"
-          accept={GHOST_EXTENSION}
-          onChange={handleFileChange}
-          disabled={busy}
-          aria-describedby={`${ids.file}-hint`}
-        />
-        <span className="field-hint" id={`${ids.file}-hint`}>
-          {mode === 'edit'
-            ? `Currently ${existingFilename}. Choose a file only if you want to replace it.`
-            : `A single ${GHOST_EXTENSION} file, up to ${MAX_GHOST_LABEL}.`}
-        </span>
-        {fieldErrors.file && <span className="field-error">{fieldErrors.file}</span>}
-      </div>
+      {!allowFileChange && (
+        <p className="page-note" style={{ marginBottom: 14 }}>
+          File: {existingFilename}. Only the uploader can replace it.
+        </p>
+      )}
+
+      {allowFileChange && (
+        <div className="field">
+          <label className="field-label" htmlFor={ids.file}>
+            Ghost file
+          </label>
+          <input
+            id={ids.file}
+            className="input"
+            type="file"
+            accept={GHOST_EXTENSION}
+            onChange={handleFileChange}
+            disabled={busy}
+            aria-describedby={`${ids.file}-hint`}
+          />
+          <span className="field-hint" id={`${ids.file}-hint`}>
+            {mode === 'edit'
+              ? `Currently ${existingFilename}. Choose a file only if you want to replace it.`
+              : `A single ${GHOST_EXTENSION} file, up to ${MAX_GHOST_LABEL}.`}
+          </span>
+          {fieldErrors.file && <span className="field-error">{fieldErrors.file}</span>}
+        </div>
+      )}
 
       {checkingFile && <p className="page-note">Checking file...</p>}
 
@@ -310,6 +325,8 @@ export function GhostForm({
           </dl>
         </div>
       )}
+
+      {extraFields}
 
       <button type="submit" className="btn btn-primary" disabled={busy}>
         {submitting ? 'Working...' : submitLabel}

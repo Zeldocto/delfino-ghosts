@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "typecheck:moonshine": "tsc -p supabase/tsconfig.json",
     "test:moonshine": "node --test --experimental-strip-types --no-warnings \"supabase/tests/moonshine/*.test.ts\"",
-    "test:storage": "node --test --experimental-strip-types --no-warnings \"supabase/tests/storage/*.test.ts\""
+    "test:storage": "node --test --experimental-strip-types --no-warnings \"supabase/tests/storage/*.test.ts\"",
+    "test:moderation": "node --test --experimental-strip-types --no-warnings \"supabase/tests/moderation/*.test.ts\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

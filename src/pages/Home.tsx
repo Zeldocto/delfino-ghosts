@@ -94,7 +94,7 @@ export function Home() {
                 <span className="cell-dim">Unclaimed</span>
               )}
             </div>
-            <div className="stat-label">Most Download Player</div>
+            <div className="stat-label">Most Downloaded Player</div>
           </div>
           <div className="stat">
             <div className="stat-value">{formatNumber(stats?.total_ghosts ?? 0)}</div>

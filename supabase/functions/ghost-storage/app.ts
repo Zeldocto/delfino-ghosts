@@ -15,7 +15,9 @@
  *     replaced;
  *   - deleted accounts can neither upload nor delete (is_active_account());
  *   - a validated object (ghost_moonshine_index row) cannot be deleted, and
- *     nor can one a ghosts row still points at.
+ *     nor can one a ghosts row still points at;
+ *   - staff (0018) may delete an object in anyone's folder, under those same
+ *     two rules, which is how a moderator-removed ghost's file is cleared.
  *
  * Downloads never come through here: they are plain GETs on the public URL.
  */
@@ -32,6 +34,8 @@ export interface StorageDb {
   isValidated(key: string): Promise<boolean>
   /** A ghosts row's file_path is this exact key. */
   isReferenced(key: string): Promise<boolean>
+  /** This account is an admin or moderator (staff_role_of, 0018). */
+  isStaff(uid: string): Promise<boolean>
 }
 
 export interface Deps {
@@ -129,7 +133,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
   async function remove(uid: string, body: Record<string, unknown>): Promise<Response> {
     const { key } = body
-    if (!isOwnedGhostKey(key, uid)) refuse('forbidden', 'not a key in your own folder')
+    if (!isOwnedGhostKey(key, uid)) {
+      // Staff clear the files of ghosts they removed; the owner is the key's first folder.
+      const owner = typeof key === 'string' ? key.split('/')[0] : ''
+      if (!isUuid(owner) || !isOwnedGhostKey(key, owner) || !(await db.isStaff(uid))) {
+        refuse('forbidden', 'not a key in your own folder')
+      }
+    }
     // Mirrors the 0012 delete policy: a validated object is immutable.
     if (await db.isValidated(key)) refuse('in_use', 'this file has been validated for Moonshine')
     // Stricter than the old policy: never pull the file out from under a live row.

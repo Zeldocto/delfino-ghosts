@@ -73,9 +73,10 @@ async function setup() {
     // Tokens in these tests are just "token-<uid>".
     verifyToken: async (token) => (token.startsWith('token-') ? token.slice(6) : null),
     db: {
-      isActiveAccount: (uid) => one(`select 1 from public.profiles where id = $1 and deleted_at is null`, [uid]),
+      isActiveAccount: (uid) => one(`select 1 where public.account_is_active($1)`, [uid]),
       isValidated: (key) => one(`select 1 from public.ghost_moonshine_index where file_path = $1`, [key]),
       isReferenced: (key) => one(`select 1 from public.ghosts where file_path = $1`, [key]),
+      isStaff: (uid) => one(`select 1 where public.staff_role_of($1) is not null`, [uid]),
     },
     s3: bucket.s3,
   })
@@ -232,6 +233,40 @@ test('delete removes only unreferenced, unvalidated objects in the caller\'s own
   await db.query(`delete from auth.users where id = $1`, [BOB])
   assert.equal((await call(BOB, { action: 'delete', key: bobKey })).body.error, 'forbidden')
   assert.ok(bucket.objects.has(bobKey))
+})
+
+test('staff may delete files in other folders, but only once no ghost uses them (0018)', async () => {
+  const { db, bucket, call, addRow } = await setup()
+  const key = `${ALICE}/${crypto.randomUUID()}/g.smsghost`
+  bucket.objects.set(key, new Uint8Array(10))
+  const ghostId = await addRow(ALICE, key)
+
+  // Bob is not staff: someone else's file is off limits whatever its state.
+  assert.equal((await call(BOB, { action: 'delete', key })).body.error, 'forbidden')
+
+  await db.query(`insert into public.staff (user_id, role) values ($1, 'moderator')`, [BOB])
+  // Staff still cannot pull a file out from under a live ghost, or delete a malformed key.
+  assert.equal((await call(BOB, { action: 'delete', key })).body.error, 'in_use')
+  assert.equal((await call(BOB, { action: 'delete', key: `${ALICE}/x/../g.smsghost` })).body.error, 'forbidden')
+  assert.equal((await call(BOB, { action: 'delete', key: `not-a-uuid/${crypto.randomUUID()}/g.smsghost` })).body.error, 'forbidden')
+
+  await db.query(`delete from public.ghosts where id = $1`, [ghostId])
+  const res = await call(BOB, { action: 'delete', key })
+  assert.equal(res.status, 200, JSON.stringify(res.body))
+  assert.ok(!bucket.objects.has(key))
+
+  // A suspended account can neither upload nor delete.
+  await db.query(`insert into public.account_suspensions (user_id) values ($1)`, [ALICE])
+  const presign = await call(ALICE, { action: 'presign-upload', ghost_id: crypto.randomUUID(), filename: 'g.smsghost', byte_size: 10 })
+  assert.deepEqual([presign.status, presign.body.error], [403, 'forbidden'])
+  await db.query(`delete from public.account_suspensions where user_id = $1`, [ALICE])
+
+  // A deleted account loses the role, and with it the access.
+  const other = `${ALICE}/${crypto.randomUUID()}/g.smsghost`
+  bucket.objects.set(other, new Uint8Array(10))
+  await db.query(`update public.profiles set deleted_at = now() where id = $1`, [BOB])
+  assert.equal((await db.query(`select 1 from public.staff where user_id = $1`, [BOB])).rows.length, 0)
+  assert.equal((await call(BOB, { action: 'delete', key: other })).body.error, 'forbidden')
 })
 
 test('the S3 client round-trips bytes and builds public URLs per segment', async () => {

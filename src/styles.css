@@ -1,10 +1,10 @@
 /* ===========================================================================
    Delfino Ghosts
    ---------------------------------------------------------------------------
-   A directory, not a dashboard. Monospace carries the data; the only saturated
-   colour in the interface is the water-blue used for actions, and gold is
-   reserved exclusively for the Most Download Player. If something is gold, it
-   means MDP and nothing else.
+   A directory, not a dashboard. Monospace carries the data; the saturated
+   colours each mean one thing: water-blue is for actions, gold is reserved
+   exclusively for the Most Downloaded Player, and red and orange mark the names
+   of admins and moderators. If something is gold, it means MDP and nothing else.
    ========================================================================= */
 
 :root {
@@ -36,6 +36,8 @@
   --danger: #e2796f;
   --danger-soft: rgba(226, 121, 111, 0.1);
   --ok: #7fc98e;
+  --role-admin: #f0645a;
+  --role-moderator: #f28c38;
   --shadow: none;
 }
 
@@ -57,6 +59,8 @@
   --danger: #b2372b;
   --danger-soft: rgba(178, 55, 43, 0.08);
   --ok: #2f7d43;
+  --role-admin: #b3261e;
+  --role-moderator: #a84f00;
   --shadow: none;
 }
 
@@ -574,6 +578,21 @@ hr {
   * {
     transition-duration: 0.01ms !important;
   }
+}
+
+/* --- staff names -----------------------------------------------------------
+   Admins red, moderators orange. Plain colour, no shimmer: the MDP stays the
+   one showy name. Same help cursor and tooltip as the MDP.                    */
+
+.staff-name {
+  font-weight: 600;
+  cursor: help;
+}
+.staff-admin {
+  color: var(--role-admin);
+}
+.staff-moderator {
+  color: var(--role-moderator);
 }
 
 /* --- tooltip -------------------------------------------------------------- */

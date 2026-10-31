@@ -3,7 +3,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 /** Where privacy questions and requests go. */
 const CONTACT_EMAIL = 'smsilmod@gmail.com'
-const EFFECTIVE_DATE = '24 October 2026'
+const EFFECTIVE_DATE = '30 October 2026'
 
 /**
  * Keep this page in step with the code. If you add a third party, a new table,
@@ -121,6 +121,18 @@ export function Privacy() {
           scrambled (salted one-way hash) form of the requesting IP address. The IP address itself is
           never stored.
         </p>
+        <p>
+          <strong>Moderation.</strong> The maintainer (the admin) and volunteer moderators they appoint
+          can edit any ghost&apos;s details, remove any ghost, and suspend an account. A removed ghost
+          and its file are deleted. A suspended account can still sign in, browse, download and
+          delete itself, but cannot upload, edit or delete ghosts, change its profile or link
+          devices until the suspension is lifted. Its owner is shown the reason staff gave. We keep a
+          record of every moderation action: what was done, to which ghost or account, who did it,
+          when and any reason given. For an edit, the record keeps the old and new values of what
+          changed. For a removal, it keeps the ghost&apos;s title and file location. Only staff can
+          see these records. Who is an admin or moderator is public: their names are marked on the
+          site.
+        </p>
 
         <h2>2. Cookies and browser storage</h2>
         <p>
@@ -229,7 +241,7 @@ export function Privacy() {
           </li>
           <li>
             <strong>To keep the archive secure and its numbers fair</strong>: sign-in logs, the
-            download records above, the abuse limits and service logs. The legal basis is our
+            download records above, the abuse limits, moderation records and service logs. The legal basis is our
             legitimate interest in protecting the site and preventing abuse.
           </li>
           <li>
@@ -258,6 +270,11 @@ export function Privacy() {
           </li>
           <li>Abuse-limit counts: deleted once they are more than a day old.</li>
           <li>
+            Moderation records: for as long as the archive exists, so actions can be reviewed. If an
+            account named in one is deleted, the record shows its anonymous name instead.
+          </li>
+          <li>A suspension: until staff lift it, or the account is deleted.</li>
+          <li>
             Service logs held by Supabase and GitHub: for the limited periods set by those providers.
           </li>
         </ul>
@@ -271,7 +288,7 @@ export function Privacy() {
         <p>
           <strong>What is deleted:</strong> your email address, password hash, sign-in sessions, your
           sign-in history and the IP addresses recorded with it, the record of every download you
-          made, and the records of your linked devices. Those devices stop working at once.
+          made, the records of your linked devices, and any moderator role or suspension. Those devices stop working at once.
           Unfinished uploads from those devices are cancelled, and their files are deleted. Your
           display name, avatar link and bio are cleared, and you are signed out.
         </p>

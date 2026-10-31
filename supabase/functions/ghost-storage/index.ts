@@ -37,12 +37,23 @@ const handler = createHandler({
   },
   db: {
     async isActiveAccount(uid) {
+      // Not deleted and not suspended (0018).
+      const active = await admin.rpc('account_is_active', { p_user_id: uid })
+      if (!active.error) return active.data === true
+      // PGRST202: the function does not exist yet because 0018 has not been run. Fall back to the
+      // pre-0018 rule (no suspensions exist then) rather than refusing every upload.
+      if (active.error.code !== 'PGRST202') throw active.error
       const { data, error } = await admin.from('profiles').select('deleted_at').eq('id', uid).maybeSingle()
       if (error) throw error
       return data !== null && (data as { deleted_at: string | null }).deleted_at === null
     },
     isValidated: (key) => exists('ghost_moonshine_index', 'file_path', key),
     isReferenced: (key) => exists('ghosts', 'file_path', key),
+    async isStaff(uid) {
+      const { data, error } = await admin.rpc('staff_role_of', { p_user_id: uid })
+      if (error) throw error
+      return data !== null
+    },
   },
   s3: createS3(s3ConfigFromEnv((name) => Deno.env.get(name)), AwsClient),
   log: (message, detail) => console.error(`[ghost-storage] ${message}`, detail ?? ''),

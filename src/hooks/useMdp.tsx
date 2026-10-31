@@ -4,7 +4,7 @@ import { fetchCurrentMdp } from '../lib/community'
 import type { Mdp } from '../types'
 
 /**
- * The current Most Download Player, fetched once per page load and shared by
+ * The current Most Downloaded Player, fetched once per page load and shared by
  * every <AuthorName />. The value is derived from live totals by the database,
  * so the designation moves on its own as soon as someone is overtaken.
  */

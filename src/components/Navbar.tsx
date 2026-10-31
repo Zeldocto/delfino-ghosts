@@ -1,12 +1,14 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
+import { useStaff } from '../hooks/useStaff'
 import { ThemeToggle } from './ThemeToggle'
 
 export const MOONSHINE_RELEASES_URL = 'https://github.com/panther03/moonshine/releases/'
 
 export function Navbar() {
   const { user, profile, signOut } = useAuth()
+  const { isStaff } = useStaff()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
 
@@ -63,6 +65,11 @@ export function Navbar() {
             {user ? (
               <>
                 <span className="nav-user">{profile?.username ?? 'Signed in'}</span>
+                {isStaff && (
+                  <NavLink to="/moderation" className="nav-link">
+                    Moderation
+                  </NavLink>
+                )}
                 <NavLink to={profile ? `/profile/${profile.username}` : '/settings'} className="nav-link">
                   Profile
                 </NavLink>

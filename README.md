@@ -232,6 +232,19 @@ supabase db push
 | `supabase/migrations/0015_size_100mb.sql` | One 100 MiB size limit for the archive and the Moonshine API (table checks, `moonshine_config()`, staging bucket). Only raises limits; deploy both Edge Functions **before** running this |
 | `supabase/migrations/0016_original_filename_shape.sql` | A ghost's download name must be a plain `.smsghost` filename, so nobody can make visitors save `something.exe`. Cleans up any existing odd names first |
 | `supabase/migrations/0017_index_force_validator.sql` | The public re-validate call (`?force=1`) only re-reads a ghost after a validator update, so it can't be used to make the server download files over and over. Safe to run before or after deploying `moonshine-api` |
+| `supabase/migrations/0018_moderation.sql` | Moderation: admin and moderator roles (names shown red and orange), editing or removing anyone's ghost, suspending accounts, and a staff-only moderation log. Run it, **then** redeploy `ghost-storage`. Then make yourself admin (below) |
+
+**Making yourself admin** (once, after 0018). In the SQL editor, with your own username:
+
+```sql
+insert into public.staff (user_id, role)
+select id, 'admin' from public.profiles where username_lower = lower('YourUsername');
+```
+
+Reload the site and a **Moderation** link appears next to your name. From there you add and remove
+moderators by username. Staff get **Edit** and **Remove** buttons on other people's ghosts and a
+**Suspend account** button on other people's profiles. Admins can only be added or removed here in
+SQL, never from the website.
 
 Migrations are cumulative and run in order. Never edit one that has already been applied somewhere —
 add a new numbered file instead.

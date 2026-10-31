@@ -16,5 +16,5 @@
       "npm:aws4fetch@1.0.20": ["../node_modules/aws4fetch"]
     }
   },
-  "include": ["functions/**/*.ts", "tests/moonshine/*.ts", "tests/storage/*.ts"]
+  "include": ["functions/**/*.ts", "tests/moonshine/*.ts", "tests/storage/*.ts", "tests/moderation/*.ts"]
 }

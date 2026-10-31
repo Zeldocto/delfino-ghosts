@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './hooks/useTheme'
 import { MdpProvider } from './hooks/useMdp'
+import { StaffProvider } from './hooks/useStaff'
 import { isSupabaseConfigured } from './lib/supabase'
 import { isStorageConfigured } from './lib/ghost/GhostStorage'
 import { Home } from './pages/Home'
@@ -22,6 +23,7 @@ import { Register } from './pages/Register'
 import { ResetPassword } from './pages/ResetPassword'
 import { Settings } from './pages/Settings'
 import { LinkDevice } from './pages/LinkDevice'
+import { Moderation } from './pages/Moderation'
 import { NotFound } from './pages/NotFound'
 
 /** GitHub Pages serves the app from a subpath; the router must agree. */
@@ -82,49 +84,59 @@ export default function App() {
         <BrowserRouter basename={basename}>
           <AuthProvider>
             <MdpProvider>
-              <ScrollToTop />
-              <RecoveryRedirect />
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route index element={<Home />} />
-                  <Route path="browse" element={<Browse />} />
-                  <Route path="ghost/:id" element={<GhostDetail />} />
-                  <Route
-                    path="ghost/:id/edit"
-                    element={
-                      <ProtectedRoute>
-                        <EditGhost />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="upload" element={<Upload />} />
-                  <Route path="profile/:username" element={<Profile />} />
-                  <Route path="community" element={<Community />} />
-                  <Route path="about" element={<About />} />
-                  <Route path="privacy" element={<Privacy />} />
-                  <Route path="login" element={<Login />} />
-                  <Route path="register" element={<Register />} />
-                  <Route path="reset-password" element={<ResetPassword />} />
-                  <Route
-                    path="settings"
-                    element={
-                      <ProtectedRoute>
-                        <Settings />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="link"
-                    element={
-                      <ProtectedRoute>
-                        <LinkDevice />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="index.html" element={<Navigate to="/" replace />} />
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
+              <StaffProvider>
+                <ScrollToTop />
+                <RecoveryRedirect />
+                <Routes>
+                  <Route element={<Layout />}>
+                    <Route index element={<Home />} />
+                    <Route path="browse" element={<Browse />} />
+                    <Route path="ghost/:id" element={<GhostDetail />} />
+                    <Route
+                      path="ghost/:id/edit"
+                      element={
+                        <ProtectedRoute>
+                          <EditGhost />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="upload" element={<Upload />} />
+                    <Route path="profile/:username" element={<Profile />} />
+                    <Route path="community" element={<Community />} />
+                    <Route path="about" element={<About />} />
+                    <Route path="privacy" element={<Privacy />} />
+                    <Route path="login" element={<Login />} />
+                    <Route path="register" element={<Register />} />
+                    <Route path="reset-password" element={<ResetPassword />} />
+                    <Route
+                      path="settings"
+                      element={
+                        <ProtectedRoute>
+                          <Settings />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="link"
+                      element={
+                        <ProtectedRoute>
+                          <LinkDevice />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="moderation"
+                      element={
+                        <ProtectedRoute>
+                          <Moderation />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="index.html" element={<Navigate to="/" replace />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
+                </Routes>
+              </StaffProvider>
             </MdpProvider>
           </AuthProvider>
         </BrowserRouter>

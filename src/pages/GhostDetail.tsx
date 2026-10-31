@@ -5,8 +5,10 @@ import { TasIndicator } from '../components/TasIndicator'
 import { DownloadButton } from '../components/DownloadButton'
 import { Notice } from '../components/Notices'
 import { deleteGhost, getGhost } from '../lib/ghosts'
+import { MAX_REASON_LENGTH, removeGhostAsStaff, retryFileRemoval } from '../lib/moderation'
 import { friendlyError } from '../lib/errors'
 import { useAuth } from '../lib/auth'
+import { useStaff } from '../hooks/useStaff'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatBytes, formatLongDate, formatNumber, pluralize } from '../utils/format'
 import { formatTime } from '../utils/time'
@@ -16,6 +18,7 @@ export function GhostDetail() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isStaff } = useStaff()
 
   const [ghost, setGhost] = useState<GhostListing | null>(null)
   const [loading, setLoading] = useState(true)
@@ -23,6 +26,10 @@ export function GhostDetail() {
   const [notFound, setNotFound] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [removeReason, setRemoveReason] = useState('')
+  /** Set when the ghost is gone but its file is still in the bucket. */
+  const [leftoverFile, setLeftoverFile] = useState<string | null>(null)
 
   useDocumentTitle(ghost?.title ?? 'Ghost')
 
@@ -68,6 +75,36 @@ export function GhostDetail() {
     }
   }
 
+  async function handleRemove() {
+    if (!ghost) return
+    setDeleting(true)
+    setError(null)
+    try {
+      const { filePath, fileRemoved } = await removeGhostAsStaff(ghost.id, removeReason)
+      if (fileRemoved) {
+        navigate('/moderation', { replace: true })
+        return
+      }
+      setLeftoverFile(filePath)
+    } catch (err) {
+      setError(friendlyError(err, 'This ghost could not be removed.'))
+    }
+    setDeleting(false)
+  }
+
+  async function handleRetryFile() {
+    if (!leftoverFile) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await retryFileRemoval(leftoverFile)
+      navigate('/moderation', { replace: true })
+    } catch (err) {
+      setError(friendlyError(err, 'The file could not be deleted. Try again in a moment.'))
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="page">
@@ -103,6 +140,28 @@ export function GhostDetail() {
   }
 
   const isOwner = user?.id === ghost.user_id
+  const canRemove = isStaff && !isOwner
+
+  if (leftoverFile) {
+    return (
+      <div className="page">
+        {error && <Notice tone="error">{error}</Notice>}
+        <h1 className="page-title">Ghost removed</h1>
+        <p className="page-note" style={{ marginTop: 8 }}>
+          &ldquo;{ghost.title}&rdquo; is off the archive and the removal is logged, but its file could not be deleted
+          from storage yet. Anyone with the old download link can still fetch it until it is.
+        </p>
+        <p style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-danger" onClick={handleRetryFile} disabled={deleting}>
+            {deleting ? 'Deleting...' : 'Delete the file now'}
+          </button>
+          <Link className="btn" to="/moderation">
+            Later, from Moderation
+          </Link>
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="page">
@@ -139,7 +198,49 @@ export function GhostDetail() {
             )}
           </span>
         )}
+        {canRemove && !confirmingRemove && (
+          <span style={{ display: 'flex', gap: 8 }}>
+            <Link className="btn btn-sm" to={`/ghost/${ghost.id}/edit`}>
+              Edit
+            </Link>
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmingRemove(true)}>
+              Remove
+            </button>
+          </span>
+        )}
       </div>
+
+      {canRemove && confirmingRemove && (
+        <form
+          className="field"
+          style={{ marginBottom: 18 }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            void handleRemove()
+          }}
+        >
+          <label className="field-label" htmlFor="remove-reason">
+            Reason for removing this ghost (staff only, optional)
+          </label>
+          <input
+            id="remove-reason"
+            className="input"
+            value={removeReason}
+            maxLength={MAX_REASON_LENGTH}
+            onChange={(e) => setRemoveReason(e.target.value)}
+            placeholder="e.g. not a ghost file"
+            autoFocus
+          />
+          <span style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button type="submit" className="btn btn-sm btn-danger" disabled={deleting}>
+              {deleting ? 'Removing...' : 'Remove ghost and file'}
+            </button>
+            <button type="button" className="btn btn-sm" onClick={() => setConfirmingRemove(false)} disabled={deleting}>
+              Cancel
+            </button>
+          </span>
+        </form>
+      )}
 
       <p className="page-note" style={{ marginBottom: 18 }}>
         by <AuthorName username={ghost.author_username} displayName={ghost.author_display_name} />
