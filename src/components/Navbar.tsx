@@ -2,6 +2,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { useStaff } from '../hooks/useStaff'
+import { AuthorName } from './AuthorName'
 import { ThemeToggle } from './ThemeToggle'
 
 export const MOONSHINE_RELEASES_URL = 'https://github.com/panther03/moonshine/releases/'
@@ -64,7 +65,13 @@ export function Navbar() {
             <ThemeToggle />
             {user ? (
               <>
-                <span className="nav-user">{profile?.username ?? 'Signed in'}</span>
+                {/* Through AuthorName like every other name, so MDP and staff colours show here too.
+                    Not a link: the Profile link sits right next to it. */}
+                {profile ? (
+                  <AuthorName username={profile.username} link={false} className="nav-user" />
+                ) : (
+                  <span className="nav-user">Signed in</span>
+                )}
                 {isStaff && (
                   <NavLink to="/moderation" className="nav-link">
                     Moderation

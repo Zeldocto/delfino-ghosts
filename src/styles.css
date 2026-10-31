@@ -264,10 +264,15 @@ hr {
   flex: 1 1 auto;
 }
 
+/* Baseline, not center: nav links carry 3px of underline space below their
+   text, so centring their boxes lifted their text above the name and buttons. */
 .nav-aux {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 14px;
+}
+.nav-aux .btn {
+  font-size: 13px;
 }
 
 .nav-user {
