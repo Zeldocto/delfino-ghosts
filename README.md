@@ -3,7 +3,7 @@
 A community archive for Super Mario Sunshine ghosts recorded with
 [Moonshine](https://github.com/panther03/moonshine/releases/), the SMS practice mod.
 
-Vibecoded, but all code is reviewed.
+Coded with AI assistance. All code is reviewed.
 
 Browse the archive, find a ghost, download it. An account is only needed to upload and to have
 your downloads counted.
