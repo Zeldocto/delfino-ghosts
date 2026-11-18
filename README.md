@@ -233,6 +233,7 @@ supabase db push
 | `supabase/migrations/0016_original_filename_shape.sql` | A ghost's download name must be a plain `.smsghost` filename, so nobody can make visitors save `something.exe`. Cleans up any existing odd names first |
 | `supabase/migrations/0017_index_force_validator.sql` | The public re-validate call (`?force=1`) only re-reads a ghost after a validator update, so it can't be used to make the server download files over and over. Safe to run before or after deploying `moonshine-api` |
 | `supabase/migrations/0018_moderation.sql` | Moderation: admin and moderator roles (names shown red and orange), editing or removing anyone's ghost, suspending accounts, and a staff-only moderation log. Run it, **then** redeploy `ghost-storage`. Then make yourself admin (below) |
+| `supabase/migrations/0019_msgt_extension.sql` | Accepts `.msgt` ghost files alongside `.smsghost` (same filename shape; each keeps its own extension). Run it, **then** redeploy `ghost-storage` and `moonshine-api` |
 
 **Making yourself admin** (once, after 0018). In the SQL editor, with your own username:
 
@@ -475,7 +476,7 @@ the level filter, search and sort.
 
 ### Uploading in bulk
 
-The upload page takes a whole folder at once: drop any number of `.smsghost` files onto the box (it
+The upload page takes a whole folder at once: drop any number of `.smsghost` or `.msgt` files onto the box (it
 highlights while files are over it) or click to browse. Each file is parsed on arrival, so titles,
 versions and category tags arrive pre-filled, and each row can be edited individually before
 sending. Files are uploaded one at a time rather than in parallel, which keeps the per-row status
@@ -493,6 +494,11 @@ Parsing lives behind `GhostParser` / `GhostValidator` / `GhostStorage` / `GhostM
 byte offsets held in a version-keyed profile. When Moonshine changes its format, add a profile entry
 in `GhostParser.ts`; files whose version is not recognised still upload, with a warning, and are
 stored and served unmodified.
+
+`.msgt` files (Moonshine's newer file type) are accepted too, and keep their `.msgt` name. Their
+filenames follow the same pattern, so level and time are still filled in from the name. The site
+cannot read inside the MSTR trace format yet, so such a file uploads with a warning, downloads
+unchanged, and is not offered to Moonshine.
 
 ---
 
@@ -521,7 +527,7 @@ rules Supabase Storage policies used to enforce now live in the function)
 
 - Every upload goes through a presigned URL the function issues to a signed-in, non-deleted
   account. The function builds the key itself as `<auth.uid()>/<ghost-id>/<name>.smsghost` from the
-  verified JWT, with exactly two folders, the `.smsghost` extension and the same `safeFilename` rules
+  verified JWT, with exactly two folders, the `.smsghost` or `.msgt` extension and the same `safeFilename` rules
   as the website, so no user can write into another user's folder.
 - The URL signs the exact `Content-Length` (at most 100 MiB), `Content-Type:
   application/octet-stream` and `If-None-Match: *`, and expires after 15 minutes, so it cannot be
@@ -646,7 +652,7 @@ settings form rewrites Imgur links automatically, warns about X, ImgBB and cloud
 previews the image so a broken link is visible before saving.
 
 **Uploads fail with a size or type error** — the `ghost-storage` function enforces 100 MiB and the
-`.smsghost` extension independently of the browser, and `ghosts_file_size_range` (0015) does the same
+`.smsghost` / `.msgt` extension independently of the browser, and `ghosts_file_size_range` (0015) does the same
 in the database. Confirm 0015 ran and the function is deployed.
 
 **Uploads or downloads fail with a network error** — usually the R2 CORS rule (section 2.5): the

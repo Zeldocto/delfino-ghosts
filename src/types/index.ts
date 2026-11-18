@@ -87,5 +87,29 @@ export const GHOST_LIMIT = 200
  */
 export const MAX_GHOST_BYTES = 100 * 1024 * 1024
 export const MAX_GHOST_LABEL = `${MAX_GHOST_BYTES / 1024 / 1024} MB`
+/**
+ * Accepted ghost file types. `.smsghost` is the original SGHF container;
+ * `.msgt` is Moonshine's newer file type, with the same filename shape.
+ * GHOST_EXTENSION is the default a name falls back to. Mirrors
+ * supabase/functions/_shared/ghost_paths.ts.
+ */
 export const GHOST_EXTENSION = '.smsghost'
+export const MSGT_EXTENSION = '.msgt'
+export const GHOST_EXTENSIONS = [GHOST_EXTENSION, MSGT_EXTENSION] as const
+export type GhostExtension = (typeof GHOST_EXTENSIONS)[number]
+/** For `accept=` on file inputs. */
+export const GHOST_ACCEPT = GHOST_EXTENSIONS.join(',')
+/** For messages: ".smsghost or .msgt". */
+export const GHOST_EXTENSIONS_LABEL = GHOST_EXTENSIONS.join(' or ')
+
+/** The accepted extension `name` ends in (any case), lowercased, or null. */
+export function ghostExtensionOf(name: string): GhostExtension | null {
+  const match = /\.(smsghost|msgt)$/i.exec(name)
+  return match ? (`.${match[1].toLowerCase()}` as GhostExtension) : null
+}
+
+/** `name` without a trailing .smsghost / .msgt. */
+export function stripGhostExtension(name: string): string {
+  return name.replace(/\.(smsghost|msgt)$/i, '')
+}
 export const PAGE_SIZE = 25

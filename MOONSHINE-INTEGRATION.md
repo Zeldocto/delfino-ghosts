@@ -367,7 +367,8 @@ curl -sS -H 'Range: bytes=0-65535' -o part0 "$DOWNLOAD_URL"      # 206 Partial C
   validation before installing. If the hash differs, the website owner replaced the file after you
   listed it. Re-fetch the entry (`GET /v1/ghosts/{id}`) and try again.
 - **Filenames:** `file.filename` is display text (`[A-Za-z0-9._-]`, ending `.smsghost`, enforced by a
-  database CHECK since migration 0016; up to 105 bytes,
+  database CHECK since migration 0016; the archive also holds `.msgt` files since 0019, but those
+  are never validated, so never listed; up to 105 bytes,
   over the import leaf's 95-byte limit). Do not use it as a path. Build the local leaf yourself,
   e.g. the spec's host convention `g_<header_ghost_id>.smsghost`.
 - Downloads through the API do **not** count toward the website's download counters or rankings.
@@ -730,8 +731,9 @@ Browser validation is UI help only.
 - **One size limit:** since 0015 the API and the website archive share 100 MiB
   (104,857,600 bytes). Files the validator rejects (including anything past the format's canonical
   size) or that use an unsupported version stay on the website, but are never listed as compatible
-  (`status: "invalid"` / `"unsupported"`; `"too_large"` only past 100 MiB). The MSTR trace format
-  (`.msgt`) is not accepted by the archive yet.
+  (`status: "invalid"` / `"unsupported"`; `"too_large"` only past 100 MiB). Since 0019 the website
+  archive accepts `.msgt` files, but the validator does not read the MSTR trace format yet, so
+  those stay website-only. API uploads are always stored as `.smsghost`.
 - **Region:** the server doesn't restrict regions. `game.region`, `route.portable_across_regions`
   and `playable_on` let the game apply its own personal-library vs imported-pool rules.
 - **Live archive today:** 121 ghosts, all valid under the reference: 78 V4, 40 V5, 2 V6, 1 V7, and

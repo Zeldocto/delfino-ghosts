@@ -1,5 +1,6 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
+import { GHOST_EXTENSION, ghostExtensionOf } from '../../types'
 
 /**
  * Ghost files live in an S3-compatible bucket (Cloudflare R2), not Supabase
@@ -13,7 +14,7 @@ const publicBase = ((import.meta.env.VITE_GHOSTS_PUBLIC_BASE_URL as string | und
 export const isStorageConfigured = Boolean(publicBase)
 
 /**
- * Objects live at `<user-id>/<ghost-id>/<name>.smsghost`. The ghost-storage
+ * Objects live at `<user-id>/<ghost-id>/<name>.smsghost` (or `.msgt`). The ghost-storage
  * function checks that first segment against the caller's verified user id,
  * and the ghosts table has a CHECK constraint tying file_path to user_id, so a
  * row can never reference another user's object.
@@ -25,18 +26,20 @@ export function buildGhostPath(userId: string, ghostId: string, originalName: st
 /**
  * Strips directories and anything that is not a plain filename character.
  * Same rules as supabase/functions/_shared/ghost_paths.ts, which is the copy
- * that is actually enforced.
+ * that is actually enforced. A `.msgt` name stays `.msgt`; anything else ends
+ * in `.smsghost`.
  */
 export function safeFilename(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? 'ghost.smsghost'
+  const ext = ghostExtensionOf(base) ?? GHOST_EXTENSION
   const cleaned = base
-    .replace(/\.smsghost$/i, '')
+    .replace(/\.(smsghost|msgt)$/i, '')
     .replace(/[^A-Za-z0-9._-]/g, '_')
     .replace(/\.{2,}/g, '_')
     .replace(/^[._-]+/, '')
     .slice(0, 96)
     .replace(/\.+$/, '') // else `abc.` + `.smsghost` makes a `..` the key check refuses
-  return `${cleaned || 'ghost'}.smsghost`
+  return `${cleaned || 'ghost'}${ext}`
 }
 
 interface PresignedUpload {

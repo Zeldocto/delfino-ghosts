@@ -13,9 +13,12 @@ import { AwsClient } from 'aws4fetch'
 import { createDatabase } from '../moonshine/harness.ts'
 import { createHandler, PRESIGN_TTL_S } from '../../functions/ghost-storage/app.ts'
 import { createS3, publicObjectUrl } from '../../functions/_shared/s3.ts'
-import { MAX_GHOST_BYTES, safeFilename } from '../../functions/_shared/ghost_paths.ts'
+import { MAX_GHOST_BYTES, ghostExtensionOf, safeFilename } from '../../functions/_shared/ghost_paths.ts'
 import { MOONSHINE_MAX_FILE_BYTES } from '../../functions/_shared/ghost_format.ts'
-import { MAX_GHOST_BYTES as WEBSITE_MAX_GHOST_BYTES } from '../../../src/types/index.ts'
+import {
+  MAX_GHOST_BYTES as WEBSITE_MAX_GHOST_BYTES,
+  ghostExtensionOf as websiteGhostExtensionOf,
+} from '../../../src/types/index.ts'
 
 const ALICE = '11111111-1111-4111-8111-111111111111'
 const BOB = '22222222-2222-4222-8222-222222222222'
@@ -145,6 +148,44 @@ test('presign-upload accepts names whose cleaned stem ends in a dot', async () =
     assert.equal(res.status, 200, `${filename}: ${JSON.stringify(res.body)}`)
     assert.equal(res.body.key, `${ALICE}/${ghostId}/${leaf}`)
     assert.equal(safeFilename(filename), leaf)
+  }
+})
+
+test('.msgt files keep their extension; everything else still ends in .smsghost (0019)', async () => {
+  const { call, bucket } = await setup()
+  for (const [filename, leaf] of [
+    ['2026_11_02_BH3_37337[1A2B3C4D].msgt', '2026_11_02_BH3_37337_1A2B3C4D_.msgt'],
+    ['C:\\Users\\me\\run 1.MSGT', 'run_1.msgt'],
+    ['abc..msgt', 'abc.msgt'],
+    ['.msgt', 'ghost.msgt'],
+    ['x.msgt.exe', 'x.msgt.exe.smsghost'],
+    ['x.smsghost.msgt', 'x.smsghost.msgt'],
+    ['x.msgt.smsghost', 'x.msgt.smsghost'],
+  ]) {
+    assert.equal(safeFilename(filename), leaf, filename)
+    assert.equal(safeFilename(leaf), leaf, `idempotent: ${leaf}`)
+    const ghostId = crypto.randomUUID()
+    const res = await call(ALICE, { action: 'presign-upload', ghost_id: ghostId, filename, byte_size: 10 })
+    assert.equal(res.status, 200, `${filename}: ${JSON.stringify(res.body)}`)
+    assert.equal(res.body.key, `${ALICE}/${ghostId}/${leaf}`)
+  }
+
+  // The Moonshine API pins its SGHF uploads to .smsghost whatever the client called them.
+  assert.equal(safeFilename('run.msgt', '.smsghost'), 'run.smsghost')
+  assert.equal(safeFilename('run.smsghost', '.msgt'), 'run.msgt')
+
+  // The website's copy of the extension rule agrees with the enforced one.
+  for (const name of ['a.msgt', 'a.MSGT', 'a.smsghost', 'a.SmsGhost', 'a.msg', 'a.msgt.txt', 'msgt', '']) {
+    assert.equal(websiteGhostExtensionOf(name), ghostExtensionOf(name), name)
+  }
+
+  // A .msgt object can be deleted like any other ghost file.
+  const key = `${ALICE}/${crypto.randomUUID()}/a.msgt`
+  bucket.objects.set(key, new Uint8Array([1]))
+  const del = await call(ALICE, { action: 'delete', key })
+  assert.deepEqual([del.status, del.body.deleted], [200, key])
+  for (const bad of [`${ALICE}/${crypto.randomUUID()}/a.MSGT`, `${ALICE}/${crypto.randomUUID()}/a.msg`, `${ALICE}/${crypto.randomUUID()}/a b.msgt`]) {
+    assert.equal((await call(ALICE, { action: 'delete', key: bad })).body.error, 'forbidden', bad)
   }
 })
 
@@ -306,6 +347,17 @@ test('a ghosts row written straight through the API cannot rename its download (
   }
   // Anything safeFilename produces, including the longest, is accepted.
   await asAlice(`update public.ghosts set original_filename = $2 where id = $1`, [id, safeFilename(`${'a'.repeat(200)}.exe`)])
+
+  // 0019: .msgt names are accepted too, in the same shape.
+  for (const name of ['g.msgt', '2026_11_02_BH3_37337_1A2B3C4D_.msgt', safeFilename(`${'a'.repeat(200)}.msgt`)]) {
+    await asAlice(`update public.ghosts set original_filename = $2 where id = $1`, [id, name])
+  }
+  await asAlice(`insert into public.ghosts (user_id, title, file_path, original_filename, file_size) values ($1, 'x', $2, 'g.msgt', 10)`, [
+    ALICE, `${ALICE}/${crypto.randomUUID()}/g.msgt`,
+  ])
+  for (const name of ['g.MSGT', 'g.msgt.exe', '.msgt', 'a b.msgt', 'g.msg', `${'a'.repeat(101)}.msgt`]) {
+    await assert.rejects(asAlice(`update public.ghosts set original_filename = $2 where id = $1`, [id, name]), /ghosts_original_filename_shape/, name)
+  }
 })
 
 test('0016 rewrites existing names exactly as safeFilename would', async () => {

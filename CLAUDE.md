@@ -13,7 +13,7 @@ everything that matters.
 
 **Delfino Ghosts** — a community archive for Super Mario Sunshine ghost files recorded with
 [Moonshine](https://github.com/panther03/moonshine/releases/), the SMS practice mod. Runners upload
-`.smsghost` files, anyone downloads them.
+`.smsghost` (and, since 0019, `.msgt`) files, anyone downloads them.
 
 The core loop is deliberately small: **browse → find ghost → see author → download**. The owner has
 said explicitly this should not become a social network. Resist adding comments, votes, feeds,
@@ -128,9 +128,17 @@ function to validate the new bytes.
 **Size.** One limit everywhere: 100 MiB (`MAX_GHOST_BYTES` in `src/types/index.ts` and
 `_shared/ghost_paths.ts`, `MOONSHINE_MAX_FILE_BYTES`, `ghosts_file_size_range`, 0015). The
 validator still caps canonical SGHF files at 1,298,016 bytes (PR27), so anything bigger stays
-website-only as `invalid`. The new **MSTR** trace format (`.msgt`, Moonshine decoder pack r8
-documents v1/v2; captures in the wild are already v3) is **not supported** yet: the site accepts
-only `.smsghost`.
+website-only as `invalid`.
+
+**`.msgt` files** (0019) are accepted alongside `.smsghost`, with the same filename shape. A name
+keeps whichever of the two extensions it ends in (`ghostExtensionOf()` / `safeFilename()` in
+`_shared/ghost_paths.ts` and `src/types` + `GhostStorage.ts`); anything else still becomes
+`.smsghost`, and `ghosts_original_filename_shape` allows either ending. The **MSTR** trace format
+inside many `.msgt` files (Moonshine decoder pack r8 documents v1/v2; captures in the wild are
+already v3) is still **not parsed**: the browser accepts such a file with a warning and fills level
+and time from the filename, and the server validator marks it `invalid`, so it is archive-only and
+never offered to Moonshine. A `.msgt` holding an SGHF container is checked like any `.smsghost`.
+Moonshine API uploads are pinned to `.smsghost` (`safeFilename(name, '.smsghost')`).
 
 ---
 
@@ -162,6 +170,7 @@ supabase/migrations/  0001 schema · 0002 storage · 0003 self-download rule
                       0016 original_filename must have safeFilename()'s shape
                       0017 index ?force=1 re-reads only after a validator change
                       0018 moderation: staff roles, edit/remove any ghost, suspensions, log
+                      0019 original_filename may also end in .msgt
 supabase/functions/   moonshine-api/ · ghost-storage/ (presign + delete for the bucket)
                       _shared/ghost_format.ts (validator) · _shared/s3.ts (S3 client, aws4fetch)
                       _shared/ghost_paths.ts (key rules, safeFilename, MAX_GHOST_BYTES)

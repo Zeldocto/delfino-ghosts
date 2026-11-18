@@ -749,7 +749,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const label = splitRunLabel(ghost.name)
     const title = ((session.title as string | null) ?? ghost.name).slice(0, 100)
-    const filename = safeFilename((session.filename as string | null) ?? ghost.portable_filename)
+    // Always .smsghost: the bytes just passed the SGHF validator, whatever the client named them.
+    const filename = safeFilename((session.filename as string | null) ?? ghost.portable_filename, '.smsghost')
     const path = `${auth.user_id}/${session.ghost_id}/${filename}`
     const profileTag = ghost.profile_name.toLowerCase().replace(/[^a-z0-9 _-]/g, '').trim().slice(0, 24)
     const isTas = session.tas_declared === true || label.isTas || (ghost.run_flags & 0x20) !== 0

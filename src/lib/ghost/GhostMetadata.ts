@@ -1,6 +1,7 @@
 import type { ParsedGhost } from './GhostParser'
 import { parseTimeInput, formatTime } from '../../utils/time'
 import { expandLevelCode } from '../../utils/levels'
+import { stripGhostExtension } from '../../types'
 
 /** Metadata the app keeps about a ghost, separate from the container itself. */
 export interface GhostMetadataInput {
@@ -78,12 +79,13 @@ export function decodeFilenameTime(digits: string): number | null {
  *   2026_09_05_BH3_37337_CDDABF1F_.smsghost    (0.4)
  *   2026_10_13_AS1_45645[DE2C7FB6].smsghost    (0.6)
  *
+ * `.msgt` files use the same names.
+ *
  * Used when the run label is unavailable. Browsers may also append " (1)" to
  * a repeated download, which is dropped along with the bracketed checksum.
  */
 export function readFilenameHints(filename: string): { level: string | null; time: string | null } {
-  const stem = filename
-    .replace(/\.smsghost$/i, '')
+  const stem = stripGhostExtension(filename)
     .replace(/\s*\(\d+\)$/, '')
     .replace(/\s*\[[0-9A-Fa-f]+\]/g, '_')
   const parts = stem.split(/[_\s]+/).filter(Boolean)
@@ -108,20 +110,22 @@ export function readFilenameHints(filename: string): { level: string | null; tim
 /**
  * Suggests form values from a parsed container so the upload form arrives
  * pre-filled. Everything here is a suggestion the uploader can overwrite.
+ * `parsed` is null for a file whose contents cannot be read here (a `.msgt`
+ * trace); the suggestions then come from the filename alone.
  */
-export function suggestMetadata(parsed: ParsedGhost, filename: string): Partial<GhostMetadataInput> {
+export function suggestMetadata(parsed: ParsedGhost | null, filename: string): Partial<GhostMetadataInput> {
   const suggestion: Partial<GhostMetadataInput> = {}
 
-  if (parsed.title) {
+  if (parsed?.title) {
     suggestion.title = parsed.title.slice(0, 100)
   } else {
-    const stem = filename.replace(/\.smsghost$/i, '').replace(/_+/g, ' ').trim()
+    const stem = stripGhostExtension(filename).replace(/_+/g, ' ').trim()
     if (stem) suggestion.title = stem.slice(0, 100)
   }
 
   // Level and time come from the run label when present, otherwise from the
   // filename Moonshine generated.
-  const fromLabel = parsed.title ? splitRunLabel(parsed.title) : { level: null, time: null, isTas: false }
+  const fromLabel = parsed?.title ? splitRunLabel(parsed.title) : { level: null, time: null, isTas: false }
   const fromName = readFilenameHints(filename)
   const level = fromLabel.level ?? fromName.level
   const time = fromLabel.time ?? fromName.time
@@ -130,7 +134,7 @@ export function suggestMetadata(parsed: ParsedGhost, filename: string): Partial<
   if (fromLabel.isTas) suggestion.isTas = true
 
   const tags: string[] = []
-  if (parsed.category) {
+  if (parsed?.category) {
     const tag = parsed.category.toLowerCase().replace(/[^a-z0-9 _-]/g, '').trim()
     if (tag) tags.push(tag.slice(0, 24))
   }

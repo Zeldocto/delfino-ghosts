@@ -7,7 +7,7 @@ import { parseTags, validateDescription, validateTitle } from '../utils/validati
 import { validateTimeInput } from '../utils/time'
 import { LEVEL_SUGGESTIONS } from '../utils/levels'
 import { formatBytes } from '../utils/format'
-import { GHOST_EXTENSION, MAX_GHOST_LABEL } from '../types'
+import { GHOST_ACCEPT, GHOST_EXTENSIONS_LABEL, MAX_GHOST_LABEL } from '../types'
 
 export interface GhostFormValues {
   title: string
@@ -90,18 +90,17 @@ export function GhostForm({
     setFile(picked)
 
     // Pre-fill from the container, without overwriting anything already typed.
-    if (result.parsed) {
-      const suggestion = suggestMetadata(result.parsed, picked.name)
-      if (suggestion.title && !title.trim()) setTitle(suggestion.title)
-      if (suggestion.level && !level.trim()) setLevel(suggestion.level)
-      if (suggestion.time && !time.trim()) setTime(suggestion.time)
-      if (suggestion.moonshineVersion && !moonshineVersion.trim()) {
-        setMoonshineVersion(suggestion.moonshineVersion)
-      }
-      if (suggestion.tags?.length && !tagInput.trim()) setTagInput(suggestion.tags.join(', '))
-      // Only ever switches TAS on; a label without the prefix says nothing either way.
-      if (suggestion.isTas) setIsTas(true)
+    // result.parsed is null for a .msgt this site cannot read; the filename still helps.
+    const suggestion = suggestMetadata(result.parsed, picked.name)
+    if (suggestion.title && !title.trim()) setTitle(suggestion.title)
+    if (suggestion.level && !level.trim()) setLevel(suggestion.level)
+    if (suggestion.time && !time.trim()) setTime(suggestion.time)
+    if (suggestion.moonshineVersion && !moonshineVersion.trim()) {
+      setMoonshineVersion(suggestion.moonshineVersion)
     }
+    if (suggestion.tags?.length && !tagInput.trim()) setTagInput(suggestion.tags.join(', '))
+    // Only ever switches TAS on; a label without the prefix says nothing either way.
+    if (suggestion.isTas) setIsTas(true)
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -282,7 +281,7 @@ export function GhostForm({
             id={ids.file}
             className="input"
             type="file"
-            accept={GHOST_EXTENSION}
+            accept={GHOST_ACCEPT}
             onChange={handleFileChange}
             disabled={busy}
             aria-describedby={`${ids.file}-hint`}
@@ -290,7 +289,7 @@ export function GhostForm({
           <span className="field-hint" id={`${ids.file}-hint`}>
             {mode === 'edit'
               ? `Currently ${existingFilename}. Choose a file only if you want to replace it.`
-              : `A single ${GHOST_EXTENSION} file, up to ${MAX_GHOST_LABEL}.`}
+              : `A single ${GHOST_EXTENSIONS_LABEL} file, up to ${MAX_GHOST_LABEL}.`}
           </span>
           {fieldErrors.file && <span className="field-error">{fieldErrors.file}</span>}
         </div>

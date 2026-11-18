@@ -190,6 +190,8 @@ export async function updateGhost(
     await uploadGhostObject(newPath, input.file)
     patch.file_path = newPath
     patch.file_size = input.file.size
+    // The download name follows the new file, so swapping a .smsghost for a .msgt keeps the right type.
+    patch.original_filename = safeFilename(input.file.name)
   }
 
   const { error } = await supabase.from('ghosts').update(patch).eq('id', ghost.id)

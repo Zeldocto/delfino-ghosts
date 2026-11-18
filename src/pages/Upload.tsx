@@ -12,7 +12,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatNumber, pluralize } from '../utils/format'
 import { parseTags } from '../utils/validation'
 import { parseTimeInput } from '../utils/time'
-import { GHOST_EXTENSION, GHOST_LIMIT, MAX_GHOST_LABEL } from '../types'
+import { GHOST_EXTENSIONS_LABEL, GHOST_LIMIT, MAX_GHOST_LABEL, ghostExtensionOf, stripGhostExtension } from '../types'
 
 function emptyValues(): GhostFormValues {
   return { title: '', description: '', level: '', time: '', isTas: false, moonshineVersion: '', tags: [] }
@@ -68,7 +68,8 @@ export function Upload() {
       const result = await validateGhostFile(entry.file)
       const values = emptyValues()
 
-      if (result.parsed) {
+      // A .msgt this site cannot read is still ok, with suggestions from its filename.
+      if (result.parsed || result.ok) {
         const suggestion = suggestMetadata(result.parsed, entry.file.name)
         values.title = suggestion.title ?? ''
         values.level = suggestion.level ?? ''
@@ -78,7 +79,7 @@ export function Upload() {
         values.isTas = suggestion.isTas ?? false
       }
       if (!values.title) {
-        values.title = entry.file.name.replace(/\.smsghost$/i, '').replace(/_+/g, ' ').trim()
+        values.title = stripGhostExtension(entry.file.name).replace(/_+/g, ' ').trim()
       }
 
       updateEntry(entry.key, {
@@ -100,10 +101,10 @@ export function Upload() {
       setFinished(false)
       setError(null)
 
-      const ghostFiles = files.filter((f) => f.name.toLowerCase().endsWith(GHOST_EXTENSION))
+      const ghostFiles = files.filter((f) => ghostExtensionOf(f.name) !== null)
       const skipped = files.length - ghostFiles.length
       if (skipped > 0) {
-        setError(`Ignored ${skipped} ${pluralize(skipped, 'file')} that did not end in ${GHOST_EXTENSION}.`)
+        setError(`Ignored ${skipped} ${pluralize(skipped, 'file')} that did not end in ${GHOST_EXTENSIONS_LABEL}.`)
       }
       if (ghostFiles.length === 0) return
 
@@ -278,8 +279,8 @@ export function Upload() {
           disabled={atLimit || uploading}
           hint={
             remaining === null
-              ? `Any number of ${GHOST_EXTENSION} files, up to ${MAX_GHOST_LABEL} each.`
-              : `Any number of ${GHOST_EXTENSION} files, up to ${MAX_GHOST_LABEL} each. Room for ${formatNumber(remaining)} more.`
+              ? `Any number of ${GHOST_EXTENSIONS_LABEL} files, up to ${MAX_GHOST_LABEL} each.`
+              : `Any number of ${GHOST_EXTENSIONS_LABEL} files, up to ${MAX_GHOST_LABEL} each. Room for ${formatNumber(remaining)} more.`
           }
         />
       </div>

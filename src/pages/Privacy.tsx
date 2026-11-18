@@ -66,7 +66,7 @@ export function Privacy() {
           have uploaded and how many counted downloads they have received.
         </p>
         <p>
-          <strong>Ghosts you upload.</strong> The <code>.smsghost</code> file itself, exactly as
+          <strong>Ghosts you upload.</strong> The <code>.smsghost</code> or <code>.msgt</code> file itself, exactly as
           uploaded, plus its original file name, size, title, description, level, time, tags, TAS
           flag, Moonshine version and upload date. A ghost file holds the recorded run data and labels
           Moonshine writes into it, such as the level, time, category, game disc id and the author

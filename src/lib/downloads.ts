@@ -37,7 +37,7 @@ export async function downloadGhost(
   }
 
   // The bytes are saved exactly as stored — nothing here rewrites the container.
-  // The name is re-cleaned so a download is always a .smsghost, whatever the row says
+  // The name is re-cleaned so a download is always a .smsghost or .msgt, whatever the row says
   // (the database enforces the same shape since 0016).
   const blob = await response.blob()
   saveBlob(blob, safeFilename(ghost.original_filename))

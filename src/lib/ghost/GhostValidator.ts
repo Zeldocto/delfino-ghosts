@@ -1,4 +1,4 @@
-import { GHOST_EXTENSION, MAX_GHOST_BYTES, MAX_GHOST_LABEL } from '../../types'
+import { GHOST_EXTENSIONS_LABEL, MAX_GHOST_BYTES, MAX_GHOST_LABEL, MSGT_EXTENSION, ghostExtensionOf } from '../../types'
 import { GhostFormatError, parseGhostFile, type ParsedGhost } from './GhostParser'
 
 export interface ValidationResult {
@@ -14,15 +14,20 @@ const KNOWN_GAME_IDS = new Set(['GMSJ', 'GMSE', 'GMSP'])
 /**
  * Front-of-house validation. It exists to give the uploader a useful message
  * before anything is sent; it is not the security boundary. Storage enforces
- * the size ceiling and the .smsghost extension, and the database enforces
+ * the size ceiling and the .smsghost / .msgt extension, and the database enforces
  * ownership, size and the 200-ghost limit regardless of what the browser does.
+ *
+ * A `.msgt` file holding the SGHF container is checked like any `.smsghost`.
+ * One in another layout (the MSTR trace format) cannot be read here yet, so it
+ * is accepted with a warning and its details come from the filename.
  */
 export async function validateGhostFile(file: File): Promise<ValidationResult> {
   const errors: string[] = []
   const warnings: string[] = []
 
-  if (!file.name.toLowerCase().endsWith(GHOST_EXTENSION)) {
-    errors.push(`Ghosts are ${GHOST_EXTENSION} files. Pick the file Moonshine wrote.`)
+  const extension = ghostExtensionOf(file.name)
+  if (!extension) {
+    errors.push(`Ghosts are ${GHOST_EXTENSIONS_LABEL} files. Pick the file Moonshine wrote.`)
     return { ok: false, errors, warnings, parsed: null }
   }
 
@@ -40,6 +45,13 @@ export async function validateGhostFile(file: File): Promise<ValidationResult> {
   try {
     parsed = await parseGhostFile(file)
   } catch (err) {
+    if (extension === MSGT_EXTENSION && err instanceof GhostFormatError) {
+      warnings.push(
+        `This site cannot read inside ${MSGT_EXTENSION} files yet, so level and time are taken from the filename. ` +
+          'The file uploads and downloads unchanged, but it will not be offered to Moonshine.',
+      )
+      return { ok: true, errors, warnings, parsed: null }
+    }
     errors.push(err instanceof GhostFormatError ? err.message : 'This file could not be read as a ghost.')
     return { ok: false, errors, warnings, parsed: null }
   }

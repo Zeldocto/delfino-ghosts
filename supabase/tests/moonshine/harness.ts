@@ -31,6 +31,7 @@ export const MIGRATIONS = [
   'migrations/0016_original_filename_shape.sql',
   'migrations/0017_index_force_validator.sql',
   'migrations/0018_moderation.sql',
+  'migrations/0019_msgt_extension.sql',
 ]
 
 // Grants Supabase gives its roles that the plain stubs do not.

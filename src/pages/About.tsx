@@ -27,7 +27,7 @@ export function About() {
 
         <h2>What a ghost file is</h2>
         <p>
-          A <code>.smsghost</code> file is a small binary container holding the inputs and state
+          A <code>.smsghost</code> or <code>.msgt</code> file is a small binary container holding the inputs and state
           Moonshine recorded for one run, along with a label like the level and final time, the disc
           id it was recorded against, and checksums covering both the header and the recorded data.
         </p>
